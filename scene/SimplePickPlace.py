@@ -1,49 +1,33 @@
 import sapien.core as sapien
 from sapien.utils import Viewer
 import numpy as np
+from transforms3d import euler
 
-from utils import create_box, create_capsule, create_sphere, create_table, load_object_mesh, load_robot
-from action import Primitives
+from utils import create_box, \
+    create_capsule, \
+    create_sphere, \
+    create_table, \
+    load_object_mesh, \
+    load_robot, \
+    load_partnet_mobility
+from action import PandaPrimitives
 from config import manipulate_root_path
-from perception import get_names_in_scene, get_pose_by_name, get_actor_by_name, get_pcd_from_actor, dense_sample_pcd
+from perception import get_pcd_from_actor, dense_sample_convex_pcd
 from perception.scene_graph import SceneGraph, Node
+from scene.core import TaskScene
+from scene.specified_object import Drawer
 
 
-class SimplePickPlaceScene():
+class SimplePickPlaceScene(TaskScene):
     def __init__(self):
-        self.engine = sapien.Engine()
-        self.renderer = sapien.SapienRenderer()
-        self.engine.set_renderer(self.renderer)
+        super().__init__()
 
-        scene_config = sapien.SceneConfig()
-        self.scene = self.engine.create_scene(scene_config)
-        self.timestep = 1 / 100.0
-        self.scene.set_timestep(self.timestep)
-        self.scene.add_ground(-1)
-        physical_material = self.scene.create_physical_material(static_friction=1, dynamic_friction=1, restitution=0.0)
-        self.scene.default_physical_material = physical_material
-        
-
-        self.scene.set_ambient_light(color=[0.5, 0.5, 0.5])
-        self.scene.add_directional_light(direction=[0, 1, -1], color=[0.5, 0.5, 0.5], shadow=True)
-        self.scene.add_point_light(position=[1, 2, 2], color=[1, 1, 1], shadow=True)
-        self.scene.add_point_light(position=[1, -2, 2], color=[1, 1, 1], shadow=True)
-        self.scene.add_point_light(position=[-1, 0, 1], color=[1, 1, 1], shadow=True)
-
-        self.viewer = Viewer(self.renderer)
-        self.viewer.set_scene(self.scene)
-        self.viewer.set_camera_xyz(x=1.46, y=0, z=0.6)
-        self.viewer.set_camera_rpy(r=0, p=-0.8, y=np.pi)
-        self.viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
-
-        self._create_tabletop()
-        self._create_robot()
-
-        self.primitives = Primitives(
+        self.primitives = PandaPrimitives(
+            self,
             viewer=self.viewer,
-            robot=self.robot, 
-            urdf_file_path=self.robot_urdf_path,
-            srdf_file_path=self.robot_srdf_path,
+            robot=self.panda_robot, 
+            urdf_file_path=self.panda_robot_urdf_path,
+            srdf_file_path=self.panda_robot_srdf_path,
             gripper=self.move_group,
             time_step=self.timestep,
             joint_vel_limits=np.ones(7),
@@ -51,12 +35,20 @@ class SimplePickPlaceScene():
         )
 
 
+    def get_object_list(self):
+        return self.object_list
+    
+
+    def get_robot_list(self):
+        return self.robot_list
+
+
     def _create_tabletop(self) -> None:
         # table top
         self.table=create_table(
-            scene=self.scene,
+            task_scene=self,
             pose=sapien.Pose([0.56, 0, 0]),
-            size=1.0,
+            size=[1., 1.4],
             height=1,
             thickness=0.1,
             name="table",
@@ -64,22 +56,24 @@ class SimplePickPlaceScene():
 
         # pads
         self.red_pad=create_box(
-            scene=self.scene,
-            pose=sapien.Pose([-0.3+0.56, 0.35, 0.005]),
+            task_scene=self,
+            pose=sapien.Pose([0.2, 0.58, 0.005]),
             half_size=[0.1, 0.1, 0.005],
             color=[1., 0., 0.],
             name='red_pad',
         )
+
         self.green_pad=create_box(
-            scene=self.scene,
-            pose=sapien.Pose([0.56, 0.35, 0.005]),
+            task_scene=self,
+            pose=sapien.Pose([0.44, 0.58, 0.005]),
             half_size=[0.1, 0.1, 0.005],
             color=[0., 1., 0.],
             name='green_pad',
         )
+
         self.blue_pad=create_box(
-            scene=self.scene,
-            pose=sapien.Pose([0.56, -0.35, 0.005]),
+            task_scene=self,
+            pose=sapien.Pose([0.2, 0.35, 0.005]),
             half_size=[0.1, 0.1, 0.005],
             color=[0., 0., 1.],
             name='blue_pad',
@@ -87,96 +81,130 @@ class SimplePickPlaceScene():
 
         #objects
         self.box = create_box(
-            self.scene,
-            sapien.Pose(p=[0.56, 0, 0.02]),
+            self,
+            sapien.Pose(p=[0.46, 0, 0.02]),
             half_size=[0.05, 0.02, 0.05],
             color=[1., 0., 0.],
             name='box',
         )
+
         self.sphere = create_sphere(
-            self.scene,
-            sapien.Pose(p=[-0.3+0.56, -0.4, 0.02]),
+            self,
+            sapien.Pose(p=[0.66, 0.2, 0.02]),
             radius=0.02,
             color=[0., 1., 0.],
             name='sphere',
         )
+
         self.capsule = create_capsule(
-            self.scene,
-            sapien.Pose(p=[0.3+0.3, 0.2, 0.02]),
+            self,
+            sapien.Pose(p=[0.3+0.2, 0.2, 0.02]),
             radius=0.02,
             half_length=0.03,
             color=[0., 0., 1.],
             name='capsule',
         )
+
         self.banana = load_object_mesh(
-            self.scene, 
-            sapien.Pose(p=[-0.2+0.56, 0, 0.01865]), 
+            self, 
+            self.renderer,
+            sapien.Pose(p=[0.2+0.46, 0, 0.01865]), 
             collision_file_path=manipulate_root_path+'assets/object/banana/collision_meshes/collision.obj',
             visual_file_path=manipulate_root_path+'assets/object/banana/visual_meshes/visual.dae',
             name='banana',
         )
 
+        self.beer_can = load_object_mesh(
+            self, 
+            self.renderer,
+            sapien.Pose(p=[0.2, 0.58, 0.0874323]), 
+            collision_file_path=manipulate_root_path+"assets/object/beer_can/visual_mesh.obj",
+            visual_file_path=manipulate_root_path+"assets/object/beer_can/visual_mesh.obj",
+            texture_file_path=manipulate_root_path+"assets/object/beer_can/texture.png",
+            name='beer_can',
+        )
+
+        self.pepsi_bottle = load_object_mesh(
+            self, 
+            self.renderer,
+            sapien.Pose(p=[0.44, 0.58, 0.129699]), 
+            collision_file_path=manipulate_root_path+"assets/object/pepsi_bottle/visual_mesh.obj",
+            visual_file_path=manipulate_root_path+"assets/object/pepsi_bottle/visual_mesh.obj",
+            texture_file_path=manipulate_root_path+"assets/object/pepsi_bottle/texture.png",
+            name='pepsi_bottle',
+        )
+
+        self.champagne = load_object_mesh(
+            self,
+            self.renderer,
+            sapien.Pose(p=[0.2, 0.35, 0.104486]), 
+            collision_file_path=manipulate_root_path+"assets/object/champagne/visual_mesh.obj",
+            visual_file_path=manipulate_root_path+"assets/object/champagne/visual_mesh.obj",
+            texture_file_path=manipulate_root_path+"assets/object/champagne/texture.png",
+            name='champagne',
+        )
+
+        # Load the drawer into the Task Scene
+        self.drawer45290 = Drawer(
+            load_partnet_mobility(
+                task_scene=self,
+                urdf_file_path=manipulate_root_path+"assets/object/partnet-mobility/45290/mobility.urdf",
+                scale=0.3,
+                pose=sapien.Pose([0.56, -0.45, 0.240578], euler.euler2quat(0,0,-np.pi/2)),
+                name="drawer45290"
+            )
+        )
+        self.object_list.append(self.drawer45290)
+
+
     def _create_robot(self) -> None:
-        self.robot_urdf_path=manipulate_root_path+"assets/robot/panda/panda.urdf"
-        self.robot_srdf_path=manipulate_root_path+"assets/robot/panda/panda.srdf"
+        self.panda_robot_urdf_path=manipulate_root_path+"assets/robot/panda/panda.urdf"
+        self.panda_robot_srdf_path=manipulate_root_path+"assets/robot/panda/panda.srdf"
         self.move_group="panda_hand"
         # Robot
         # Load URDF
         self.init_qpos=[0, 0.19634954084936207, 0.0, -2.617993877991494, 0.0, 2.941592653589793, 0.7853981633974483, 0, 0]
-        self.robot=load_robot(
-            scene=self.scene,
+        self.panda_robot=load_robot(
+            task_scene=self,
             pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
             init_qpos=self.init_qpos,
-            urdf_file_path=self.robot_urdf_path,
+            urdf_file_path=self.panda_robot_urdf_path,
             name="panda_robot",
-            )       
+        )
 
-        self.active_joints = self.robot.get_active_joints()
-    
-
-    def get_pad_postion(
-            self,
-            pad_name='red_pad',
-    ) -> sapien.Pose:
-        return get_pose_by_name(self.scene, 'red_pad')
-    
-    def get_pose_by_name(
-            self,
-            name:str,
-    ) -> sapien.Pose:
-        for actor in self.scene.get_all_actors():
-            if name==actor.get_name():
-                return actor.get_pose()
-
-    def get_names_on_table(self) -> list:
-        all_name_list=get_names_in_scene(self.scene)
-        graspable_name_list=[]
-        for name in all_name_list:
-            if "robot" not in name and "pad" not in name and name != "table" and name != "ground":
-                graspable_name_list.append(name)
-        return graspable_name_list
-
-    def demo(self) -> None:
-        while not self.viewer.closed:
-            self.scene.update_render()
-            self.viewer.render()
 
     def get_scene_graph(self):
+        # self.drawer45290.drawer_body.get_active_joints()[2].get_limits
+        # self.drawer45290.drawer_body.get_active_joints()[2].
         self.scenegraph=SceneGraph()
-        names=get_names_in_scene(scene=self.scene)[2:]
 
-        for name in names:
-            actor = get_actor_by_name(scene=self.scene, name=name)
-            pcd = get_pcd_from_actor(actor)
-            if actor.get_builder().get_visuals()[0].type=="Box":
-                pcd = dense_sample_pcd(pcd)
-            node=Node(name, pcd)
-            self.scenegraph.add_node_wo_state(node)
+        for obj in self.object_list:
+            if type(obj)==sapien.Actor and obj.get_name()!="table":
+                pcd = get_pcd_from_actor(obj)
+                if obj.get_builder().get_visuals()[0].type=="Box":
+                    pcd = dense_sample_convex_pcd(pcd)
+                node=Node(obj.get_name(), pcd)
+                self.scenegraph.add_node_wo_state(node)
+            elif type(obj)==Drawer:
+                node=Node(obj.get_name(), obj.get_pcd())
+                self.scenegraph.add_node_wo_state(node)
+                for handle_name in obj.get_handle_name_list():
+                    handle_pcd = obj.get_handle_pcd_by_name(handle_name)
+                    node = Node(handle_name + f" with open degree: {(obj.get_open_degree_by_name(handle_name)*100):.0f}%", handle_pcd)
+                    self.scenegraph.add_node_wo_state(node)
 
         return self.scenegraph
 
 
+    def demo(self, step = False) -> None:
+        while not self.viewer.closed:
+            if step:
+                self.scene.step()
+            self.scene.update_render()
+            self.viewer.render()
+
+
 if __name__ == '__main__':
     demo = SimplePickPlaceScene()
-    demo.demo()
+    demo.demo(step=False)
     print(demo.get_scene_graph())

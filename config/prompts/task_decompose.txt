@@ -76,9 +76,10 @@ answer:
 ```
 
 Now I'd like you to help me decompose the following task into subtasks and call corresponding primitive actions. You should read the task description and the scene graph I provide with you, and think about how to decompose the task. Think step by step, and imagine the process to accomplish the task with the primitive actions provided with you: Pick(obj_name), PlaceOn(obj_name), PlaceAt(place_pos), Push(obj_name, direction, distance). Note that the second and third parameters of Push are list of float and float respectively, do not use expressions composed of variables.
+Note: Please make the format of your answer completely the same with the examples above, I mean: use | to split the subtask and primitive action.
 ```
-task description: 
+task description:
 {}
 scene graph:
 {}
-reasoning: 
+reasoning:

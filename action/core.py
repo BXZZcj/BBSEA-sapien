@@ -5,7 +5,7 @@ from sapien.utils import Viewer
 import mplib
 import numpy as np
 
-from perception import get_pcd_from_actor, get_actor_by_name, dense_sample_pcd
+from perception import get_pcd_from_actor, get_actor_by_name, dense_sample_convex_pcd
 
 
 class Move_Tool():
@@ -54,11 +54,11 @@ class Move_Tool():
                     pcd = get_pcd_from_actor(actor)
                     actor_type = actor.get_builder().get_visuals()[0].type
                     if actor_type == "Box":
-                        pcd = dense_sample_pcd(pcd)
+                        pcd = dense_sample_convex_pcd(pcd)
                     combined_pcd = combined_pcd + pcd.tolist()
             planner.update_point_cloud(np.array(combined_pcd))
         if collision_avoid_actor:
-            pcd = dense_sample_pcd(get_pcd_from_actor(get_actor_by_name(self.scene, collision_avoid_actor)))
+            pcd = dense_sample_convex_pcd(get_pcd_from_actor(get_actor_by_name(self.scene, collision_avoid_actor)))
             planner.update_point_cloud(pcd)
         if collision_avoid_attach_actor:
             actor=get_actor_by_name(self.scene, collision_avoid_attach_actor)

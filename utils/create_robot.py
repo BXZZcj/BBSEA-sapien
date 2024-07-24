@@ -3,9 +3,11 @@ import mplib
 import numpy as np
 from sapien.utils.viewer import Viewer
 
+from scene.core import TaskScene
+
 
 def load_robot(
-        scene: sapien.Scene,
+        task_scene: TaskScene,
         pose: sapien.Pose,
         init_qpos: list,
         urdf_file_path: str,
@@ -16,6 +18,8 @@ def load_robot(
 ) -> sapien.Articulation:
     # Robot
     # Load URDF
+    scene = task_scene.scene
+
     loader: sapien.URDFLoader = scene.create_urdf_loader()
     loader.fix_root_link = fix_root_link
     robot: sapien.Articulation = loader.load(urdf_file_path)
@@ -29,5 +33,7 @@ def load_robot(
     active_joints = robot.get_active_joints()
     for joint_idx, joint in enumerate(active_joints):
         joint.set_drive_property(stiffness=uniform_stiffness, damping=uniform_damping)
+
+    task_scene.robot_list.append(robot)
 
     return robot

@@ -4,7 +4,7 @@ import numpy as np
 from transforms3d.euler import euler2quat
 import transforms3d.quaternions as quat 
 
-from scene import SimplePickPlaceScene
+from scene.SimplePickPlace import SimplePickPlaceScene
 
 demo=SimplePickPlaceScene()
 demo.scene.step() 
@@ -38,11 +38,11 @@ demo.scene.update_render()
 # success=demo.grasp_tool._move_to_pose(sapien.Pose([0.5,0,0.6], euler2quat(np.pi,0,0)))
 
 # demo.primitives.Push("sphere", [1,0,0],0.1)
-demo.primitives.Pick("box")
+demo.primitives.Pick("banana")
 # demo.primitives._open_gripper()
 # demo.primitives.PlaceAt([0.56, 0.35, 0.01])
 # demo.primitives.Pick("box")
-demo.primitives.PlaceOn("red_pad")
+# demo.primitives.PlaceOn("red_pad")
 # plan()
 # while not demo.viewer.closed:
 #     demo.scene.update_render()

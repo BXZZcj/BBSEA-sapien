@@ -21,15 +21,34 @@ def get_actor_by_name(
     for actor in scene.get_all_actors():
         if name==actor.get_name():
             return actor
+        
+
+def get_articulation_by_name(
+        scene:sapien.Scene,
+        name:str,
+) -> sapien.Articulation:
+    for articulation in scene.get_all_articulations():
+        if name==articulation.get_name():
+            return articulation
 
 
-def get_names_in_scene(
+def get_actor_names_in_scene(
         scene: sapien.Scene,
 ) -> list:
     name_list=[]
     for actor in scene.get_all_actors():
         name_list.append(actor.get_name())
     return name_list
+
+
+def get_articulation_names_in_scene(
+        scene: sapien.Scene,
+) -> list:
+    name_list=[]
+    for articulation in scene.get_all_articulations():
+        name_list.append(articulation.get_name())
+    return name_list
+
 
 def get_object_by_name(
         scene:sapien.Scene,
@@ -40,7 +59,28 @@ def get_object_by_name(
             return actor
         
 
-def get_pcd_from_actor(actor: Actor) -> np.ndarray:
+def get_pcd_from_articulation(articulation: sapien.Articulation) -> np.ndarray:
+    pcd=[]
+    for link in articulation.get_links():
+        for vis_body in link.get_visual_bodies():
+            for render_shape in vis_body.get_render_shapes():
+                vertices = render_shape.mesh.vertices
+                pcd+=vertices.tolist()
+    pcd=np.array(pcd)
+    # If the articulation.get_links()[1].get_visual_bodies() return [], just change the index 1 to other number
+    pcd=pcd * articulation.get_links()[1].get_visual_bodies()[0].scale
+
+    tf_mat=articulation.get_links()[1].get_pose().to_transformation_matrix()
+    pcd_homo=np.concatenate((pcd, np.ones((pcd.shape[0],1))), axis=-1)
+    pcd = (tf_mat@pcd_homo.T).T[:,:-1]
+
+    # hull = ConvexHull(pcd)
+    # pcd = pcd[hull.vertices, :]
+    
+    return pcd
+
+
+def get_pcd_from_actor(actor: sapien.Actor) -> np.ndarray:
     vis_body = actor.get_visual_bodies()[0]
     render_shape = vis_body.get_render_shapes()[0]
     vertices = render_shape.mesh.vertices
@@ -60,12 +100,26 @@ def get_pcd_from_actor(actor: Actor) -> np.ndarray:
     return pcd
 
 
-def dense_sample_pcd(point_cloud: np.ndarray) -> np.ndarray:
+def dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
+    sample_count = 10000
+    if len(point_cloud) > sample_count:
+        return point_cloud
+    
     hull = ConvexHull(point_cloud)
     mesh = trimesh.Trimesh(vertices=point_cloud, faces=hull.simplices)
-    denser_pcd, _ = trimesh.sample.sample_surface(mesh, 10000)
+    denser_pcd, _ = trimesh.sample.sample_surface(mesh, sample_count)
 
     return denser_pcd
+
+
+def uniform_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
+    sample_count = len(point_cloud)
+    
+    hull = ConvexHull(point_cloud)
+    mesh = trimesh.Trimesh(vertices=point_cloud, faces=hull.simplices)
+    uniform_pcd, _ = trimesh.sample.sample_surface(mesh, sample_count)
+
+    return uniform_pcd
 
 
 def get_normals_from_actor(actor: Actor, point_cloud: np.ndarray) -> np.ndarray:
