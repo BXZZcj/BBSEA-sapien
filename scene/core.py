@@ -4,8 +4,7 @@ import numpy as np
 
 from perception import get_actor_names_in_scene, \
     get_actor_by_name, \
-    get_pcd_from_actor, \
-    dense_sample_convex_pcd
+    get_pcd_from_actor
 from perception.scene_graph import SceneGraph, Node
 
 

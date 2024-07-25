@@ -8,14 +8,16 @@ from typing import Tuple
 import quaternion
 
 from .core import Move_Tool
-from perception import get_pcd_from_actor, get_actor_by_name, dense_sample_convex_pcd, get_normals_from_actor
+from perception import get_pcd_from_actor, get_actor_by_name, get_normals_from_actor
 from transforms3d import euler, quaternions
 from utils import panda_x_direction_quant, panda_z_direction_quant
 from scene.core import TaskScene
 from scene.specified_object import Drawer
 
 # the distance between the move group center with the grippers center
-DMG2G = 0.11 
+DMG2G = 0.1
+# the figger length of the gripper
+FL = 0.048
 
 
 class PandaPrimitives:
@@ -60,17 +62,31 @@ class PandaPrimitives:
 
     def _move_to_pose(
             self,
-            pose: sapien.Pose,
+            gripper_pose: sapien.Pose,
             collision_avoid_attach_actor="",
             collision_avoid_actor="",
             collision_avoid_all=False,
+            collision_avoid_all_except=[],
+            guarantee_screw_mp=False,
+            distinguish_gripper_movegroup=True,
     ) -> int:
-        
+        if distinguish_gripper_movegroup:
+            gripper_direction = (euler.quat2mat(gripper_pose.q) @ np.array([0,0,1]).T).T
+            gripper_direction = gripper_direction/np.linalg.norm(gripper_direction)
+
+            move_group_pose = sapien.Pose()
+            move_group_pose.set_p(gripper_pose.p - DMG2G*gripper_direction)
+            move_group_pose.set_q(gripper_pose.q)
+        else:
+            move_group_pose = gripper_pose
+
         return self.move_tool.move_to_pose(
-            pose,
+            move_group_pose,
             collision_avoid_attach_actor,
             collision_avoid_actor,
             collision_avoid_all,
+            collision_avoid_all_except,
+            guarantee_screw_mp,
             self.n_render_step,
             self.time_step,
             )
@@ -83,7 +99,7 @@ class PandaPrimitives:
         # This disturbation aims to make the gripper open process more stable.
         disturbation=self.robot.get_links()[-3].get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
-        self._move_to_pose(disturbation)
+        self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
         for i in range(100): 
             qf = self.robot.compute_passive_force(
@@ -106,7 +122,7 @@ class PandaPrimitives:
         # This disturbation aims to make the gripper close process more stable.
         disturbation=self.robot.get_links()[-3].get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
-        self._move_to_pose(disturbation)
+        self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
         for joint in self.robot.get_active_joints()[-2:]:
             joint.set_drive_target(0)
@@ -137,19 +153,19 @@ class PandaPrimitives:
             obj_center = np.mean(obj_pcd, axis=0)
             long_axis = np.linalg.norm(np.max(obj_pcd, axis=0)[:2]-np.min(obj_pcd, axis=0)[:2])
 
+            direction = direction/np.linalg.norm(direction)
             if len(direction)==2:
-                direction+=[0]
+                direction=np.concatenate((direction, [0.2]))
             direction = direction/np.linalg.norm(direction)
             pose_pre_push, pose_post_push = sapien.Pose(), sapien.Pose()
 
-            pose_pre_push.set_p(obj_center 
-                                - np.array([direction[0], direction[1], 0]) * (long_axis + 0.02) 
-                                + (0,0,-obj_center[2] +0.11 if obj_center[2]<0.11 else 0))
+            # The z value should be a little bigger than 0 (z value of the table top), 
+            # or the collision avoidance equation will never be solved,
+            # because the gripper will always contact with the table top  
+            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) - np.array([direction[0], direction[1], 0]) * (long_axis + 0.02))
             pose_pre_push.set_q(panda_x_direction_quant(direction))
 
-            pose_post_push.set_p(obj_center 
-                                + np.array([direction[0], direction[1], 0]) * distance 
-                                + (0,0,-obj_center[2] +0.11 if obj_center[2]<0.11 else 0))
+            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) + np.array([direction[0], direction[1], 0]) * distance)
             pose_post_push.set_q(panda_x_direction_quant(direction))
 
             return pose_pre_push, pose_post_push
@@ -162,7 +178,7 @@ class PandaPrimitives:
         ) -> int:
             p1, p2 = pq1.p, pq2.p
             distance = np.linalg.norm(p2 - p1)
-            num_steps = int(distance / step)
+            num_steps = max(int(distance / step), 1)
             interpolated_p = np.array([p1 + (p2 - p1) * t / num_steps for t in range(num_steps + 1)])
 
             interpolated_pq=[]
@@ -186,7 +202,7 @@ class PandaPrimitives:
         self._close_gripper()
 
         for push_pose in push_pose_path[1:]:
-            if self._move_to_pose(push_pose)==-1:
+            if self._move_to_pose(push_pose, guarantee_screw_mp=True)==-1:
                 print("Inverse Kinematics Computation Fails.")
                 return -1
         
@@ -202,8 +218,6 @@ class PandaPrimitives:
                 pushin_more=True
         )-> Tuple[Pose, Pose]:
             pcd = get_pcd_from_actor(actor)
-            if actor.get_builder().get_visuals()[0].type == "Box":
-                pcd = dense_sample_convex_pcd(pcd)
             pcd_normals = get_normals_from_actor(actor, pcd)
             
             pointing_down = pcd_normals[:, 2] < 0.0
@@ -224,7 +238,7 @@ class PandaPrimitives:
                 )
                 candidate_points = pcd[candidate_indices].copy()
                 position = candidate_points.mean(axis=0)
-                position[2] = pcd[:, 2].mean()
+                position[2] = max(pcd[:, 2].mean(), pcd[:,2].max()-FL)
 
                 panda_gripper_q = _cal_pick_orientation(candidate_points)
 
@@ -239,7 +253,7 @@ class PandaPrimitives:
                     normal *= -1.0
                 grasp_pose = Pose(
                     # p = position - normal * pushin_distance + [0,0,0.12],
-                    p = position + normal * 0.09,
+                    p = position,
                     q = panda_gripper_q,
                 )
 
@@ -332,8 +346,6 @@ class PandaPrimitives:
     ):
         def _compute_pose_for_place(actor: Actor) -> Tuple[Pose, Pose]:
             pcd = get_pcd_from_actor(actor)
-            if actor.get_builder().get_visuals()[0].type == "Box":
-                pcd = dense_sample_convex_pcd(pcd)
             pcd_normals = get_normals_from_actor(actor, pcd)
             filter_out_mask = pcd_normals[:, 2] < 0.95
 
@@ -373,7 +385,7 @@ class PandaPrimitives:
                 place_distance = max(span-gripper_deep, 0)
 
                 place_pose = Pose(
-                    p = contact_position + (0.11+place_distance) * (-place_z_direction),
+                    p = contact_position + place_distance * -place_z_direction,
                     q = place_direction_quant
                 )
 

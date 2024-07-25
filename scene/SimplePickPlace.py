@@ -8,11 +8,10 @@ from utils import create_box, \
     create_sphere, \
     create_table, \
     load_object_mesh, \
-    load_robot, \
-    load_partnet_mobility
+    load_robot
 from action import PandaPrimitives
 from config import manipulate_root_path
-from perception import get_pcd_from_actor, dense_sample_convex_pcd
+from perception import get_pcd_from_actor
 from perception.scene_graph import SceneGraph, Node
 from scene.core import TaskScene
 from scene.specified_object import Drawer
@@ -47,7 +46,7 @@ class SimplePickPlaceScene(TaskScene):
         # table top
         self.table=create_table(
             task_scene=self,
-            pose=sapien.Pose([0.56, 0, 0]),
+            pose=sapien.Pose([0.57, 0, 0]),
             size=[1., 1.4],
             height=1,
             thickness=0.1,
@@ -82,8 +81,8 @@ class SimplePickPlaceScene(TaskScene):
         #objects
         self.box = create_box(
             self,
-            sapien.Pose(p=[0.46, 0, 0.02]),
-            half_size=[0.05, 0.02, 0.05],
+            sapien.Pose(p=[0.46, -0.1, 0.06]),
+            half_size=[0.05, 0.02, 0.06],
             color=[1., 0., 0.],
             name='box',
         )
@@ -114,47 +113,47 @@ class SimplePickPlaceScene(TaskScene):
             name='banana',
         )
 
-        self.beer_can = load_object_mesh(
-            self, 
-            self.renderer,
-            sapien.Pose(p=[0.2, 0.58, 0.0874323]), 
-            collision_file_path=manipulate_root_path+"assets/object/beer_can/visual_mesh.obj",
-            visual_file_path=manipulate_root_path+"assets/object/beer_can/visual_mesh.obj",
-            texture_file_path=manipulate_root_path+"assets/object/beer_can/texture.png",
-            name='beer_can',
-        )
+        # self.beer_can = load_object_mesh(
+        #     self, 
+        #     self.renderer,
+        #     sapien.Pose(p=[0.2, 0.58, 0.0874323]), 
+        #     collision_file_path=manipulate_root_path+"assets/object/beer_can/visual_mesh.obj",
+        #     visual_file_path=manipulate_root_path+"assets/object/beer_can/visual_mesh.obj",
+        #     texture_file_path=manipulate_root_path+"assets/object/beer_can/texture.png",
+        #     name='beer_can',
+        # )
 
-        self.pepsi_bottle = load_object_mesh(
-            self, 
-            self.renderer,
-            sapien.Pose(p=[0.44, 0.58, 0.129699]), 
-            collision_file_path=manipulate_root_path+"assets/object/pepsi_bottle/visual_mesh.obj",
-            visual_file_path=manipulate_root_path+"assets/object/pepsi_bottle/visual_mesh.obj",
-            texture_file_path=manipulate_root_path+"assets/object/pepsi_bottle/texture.png",
-            name='pepsi_bottle',
-        )
+        # self.pepsi_bottle = load_object_mesh(
+        #     self, 
+        #     self.renderer,
+        #     sapien.Pose(p=[0.44, 0.58, 0.129699]), 
+        #     collision_file_path=manipulate_root_path+"assets/object/pepsi_bottle/visual_mesh.obj",
+        #     visual_file_path=manipulate_root_path+"assets/object/pepsi_bottle/visual_mesh.obj",
+        #     texture_file_path=manipulate_root_path+"assets/object/pepsi_bottle/texture.png",
+        #     name='pepsi_bottle',
+        # )
 
-        self.champagne = load_object_mesh(
-            self,
-            self.renderer,
-            sapien.Pose(p=[0.2, 0.35, 0.104486]), 
-            collision_file_path=manipulate_root_path+"assets/object/champagne/visual_mesh.obj",
-            visual_file_path=manipulate_root_path+"assets/object/champagne/visual_mesh.obj",
-            texture_file_path=manipulate_root_path+"assets/object/champagne/texture.png",
-            name='champagne',
-        )
+        # self.champagne = load_object_mesh(
+        #     self,
+        #     self.renderer,
+        #     sapien.Pose(p=[0.2, 0.35, 0.104486]), 
+        #     collision_file_path=manipulate_root_path+"assets/object/champagne/visual_mesh.obj",
+        #     visual_file_path=manipulate_root_path+"assets/object/champagne/visual_mesh.obj",
+        #     texture_file_path=manipulate_root_path+"assets/object/champagne/texture.png",
+        #     name='champagne',
+        # )
 
-        # Load the drawer into the Task Scene
-        self.drawer45290 = Drawer(
-            load_partnet_mobility(
-                task_scene=self,
-                urdf_file_path=manipulate_root_path+"assets/object/partnet-mobility/45290/mobility.urdf",
-                scale=0.3,
-                pose=sapien.Pose([0.56, -0.45, 0.240578], euler.euler2quat(0,0,-np.pi/2)),
-                name="drawer45290"
-            )
-        )
-        self.object_list.append(self.drawer45290)
+        # # Load the drawer into the Task Scene
+        # self.drawer45290 = Drawer(
+        #     load_partnet_mobility(
+        #         task_scene=self,
+        #         urdf_file_path=manipulate_root_path+"assets/object/partnet-mobility/45290/mobility.urdf",
+        #         scale=0.3,
+        #         pose=sapien.Pose([0.56, -0.45, 0.240578], euler.euler2quat(0,0,-np.pi/2)),
+        #         name="drawer45290"
+        #     )
+        # )
+        # self.object_list.append(self.drawer45290)
 
 
     def _create_robot(self) -> None:
@@ -181,8 +180,6 @@ class SimplePickPlaceScene(TaskScene):
         for obj in self.object_list:
             if type(obj)==sapien.Actor and obj.get_name()!="table":
                 pcd = get_pcd_from_actor(obj)
-                if obj.get_builder().get_visuals()[0].type=="Box":
-                    pcd = dense_sample_convex_pcd(pcd)
                 node=Node(obj.get_name(), pcd)
                 self.scenegraph.add_node_wo_state(node)
             elif type(obj)==Drawer:

@@ -5,7 +5,7 @@ from sapien.utils import Viewer
 import mplib
 import numpy as np
 
-from perception import get_pcd_from_actor, get_actor_by_name, dense_sample_convex_pcd
+from perception import get_pcd_from_actor, get_actor_by_name
 
 
 class Move_Tool():
@@ -35,6 +35,7 @@ class Move_Tool():
             collision_avoid_attach_actor="",
             collision_avoid_actor="",
             collision_avoid_all=False,
+            collision_avoid_all_except=[]
     ) -> mplib.Planner:
         link_names = [link.get_name() for link in self.robot.get_links()]
         joint_names = [joint.get_name() for joint in self.robot.get_active_joints()]
@@ -47,18 +48,16 @@ class Move_Tool():
             joint_vel_limits=self.joint_vel_limits,
             joint_acc_limits=self.joint_acc_limits)
         
-        if collision_avoid_all:
-            combined_pcd=[]
+        if collision_avoid_all or collision_avoid_all_except:
+            combined_pcd=np.array([]).reshape(0, 3)
             for actor in self.scene.get_all_actors():
-                if actor.get_name()!="ground":
+                if actor.get_name()!="ground" and actor.get_name() not in collision_avoid_all_except:
                     pcd = get_pcd_from_actor(actor)
                     actor_type = actor.get_builder().get_visuals()[0].type
-                    if actor_type == "Box":
-                        pcd = dense_sample_convex_pcd(pcd)
-                    combined_pcd = combined_pcd + pcd.tolist()
-            planner.update_point_cloud(np.array(combined_pcd))
+                    combined_pcd = np.concatenate((combined_pcd, pcd), axis=0)
+            planner.update_point_cloud(combined_pcd)
         if collision_avoid_actor:
-            pcd = dense_sample_convex_pcd(get_pcd_from_actor(get_actor_by_name(self.scene, collision_avoid_actor)))
+            pcd = get_pcd_from_actor(get_actor_by_name(self.scene, collision_avoid_actor))
             planner.update_point_cloud(pcd)
         if collision_avoid_attach_actor:
             actor=get_actor_by_name(self.scene, collision_avoid_attach_actor)
@@ -108,6 +107,8 @@ class Move_Tool():
             collision_avoid_attach_actor="",
             collision_avoid_actor="",
             collision_avoid_all=False,
+            collision_avoid_all_except=[],
+            guarantee_screw_mp=False,
             n_render_step=4,
             time_step=1/100,
     ) -> int:
@@ -136,15 +137,16 @@ class Move_Tool():
             collision_avoid_attach_actor,
             collision_avoid_actor,
             collision_avoid_all,
+            collision_avoid_all_except,
             )
         
         pose_list = list(pose.p)+list(pose.q)
         # Screw Algo
         result = planner.plan_screw(pose_list, self.robot.get_qpos(), time_step=time_step, 
-                                    use_point_cloud=True, use_attach=True)
+                                    use_point_cloud=~guarantee_screw_mp, use_attach=~guarantee_screw_mp)
         if result['status'] != "Success":
             # RTTConnect Algo
-            result = planner.plan_qpos_to_pose(pose_list, self.robot.get_qpos(), time_step=time_step, 
+            result = planner.plan_qpos_to_pose(pose_list, self.robot.get_qpos(), time_step=time_step, verbose=True,
                                                use_point_cloud=True, use_attach=True)
             if result['status'] != "Success":
                 return -1

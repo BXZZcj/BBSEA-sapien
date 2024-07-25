@@ -25,7 +25,7 @@ def create_box(
         pose: sapien.Pose,
         half_size=[0.05, 0.05, 0.05],
         color=[1., 0., 0.],
-        name='',
+        name=''
 ) -> sapien.Actor:
     """Create a box.
 
@@ -45,6 +45,7 @@ def create_box(
     builder.add_box_collision(half_size=half_size)  # Add collision shape
     builder.add_box_visual(half_size=half_size, color=color)  # Add visual shape
     box: sapien.Actor = builder.build(name=name)
+
     # Or you can set_name after building the actor
     # box.set_name(name)
     box.set_pose(pose)
@@ -109,10 +110,9 @@ def create_table(
     builder = scene.create_actor_builder()
     
     # Tabletop
-    tabletop_pose = sapien.Pose([0., 0., -thickness / 2])  # Make the top surface's z equal to 0
     tabletop_half_size = [size[0] / 2, size[1] / 2, thickness / 2]
-    builder.add_box_collision(pose=tabletop_pose, half_size=tabletop_half_size)
-    builder.add_box_visual(pose=tabletop_pose, half_size=tabletop_half_size, color=color)
+    builder.add_box_collision(half_size=tabletop_half_size)
+    builder.add_box_visual(half_size=tabletop_half_size, color=color)
     
     # Table legs (x4)
     for i in [-1, 1]:
@@ -125,6 +125,7 @@ def create_table(
             builder.add_box_visual(pose=table_leg_pose, half_size=table_leg_half_size, color=color)
 
     table = builder.build_kinematic(name=name)
+    pose.set_p(np.array([pose.p[0], pose.p[1], pose.p[2]-thickness / 2])) # Make the top surface's z equal to 0
     table.set_pose(pose)
 
     task_scene.object_list.append(table)

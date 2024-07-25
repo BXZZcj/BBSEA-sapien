@@ -1,5 +1,5 @@
 import sapien.core as sapien
-from sapien.core import ActorBase, Actor
+from sapien.core import ActorBase, Actor, RenderBody
 import numpy as np
 from scipy.spatial import ConvexHull
 import trimesh
@@ -81,26 +81,34 @@ def get_pcd_from_articulation(articulation: sapien.Articulation) -> np.ndarray:
 
 
 def get_pcd_from_actor(actor: sapien.Actor) -> np.ndarray:
-    vis_body = actor.get_visual_bodies()[0]
+    pcd=np.array([]).reshape(0,3)
+    for vis_body in actor.get_visual_bodies():
+        part_pcd = _get_pcd_from_actor(actor, vis_body)
+        pcd=np.concatenate((pcd, part_pcd), axis=0)
+    
+    return pcd
+
+
+def _get_pcd_from_actor(actor: Actor, vis_body: RenderBody) -> np.ndarray:
     render_shape = vis_body.get_render_shapes()[0]
     vertices = render_shape.mesh.vertices
 
     actor_type = actor.get_builder().get_visuals()[0].type
     if actor_type == "Box":
-        vertices = vertices * actor.get_builder().get_visuals()[0].scale 
+        vertices = _dense_sample_convex_pcd(vertices * actor.get_builder().get_visuals()[0].scale)
     elif actor_type == "Sphere":
         vertices = vertices * actor.get_builder().get_visuals()[0].radius
     elif actor_type == "Capsule" or actor_type == "File":
         vertices = vertices
 
-    tf_mat=actor.get_pose().to_transformation_matrix()
-    vertices_homo=np.concatenate((vertices, np.ones((vertices.shape[0],1))), axis=-1)
-    pcd = (tf_mat@vertices_homo.T).T[:,:-1]
+    tf_mat = actor.get_pose().to_transformation_matrix() @ vis_body.local_pose.to_transformation_matrix()
+    vertices_homo = np.concatenate((vertices, np.ones((vertices.shape[0],1))), axis=-1)
+    pcd = (tf_mat @ vertices_homo.T).T[:,:-1]
     
     return pcd
 
 
-def dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
+def _dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
     sample_count = 10000
     if len(point_cloud) > sample_count:
         return point_cloud
@@ -109,7 +117,7 @@ def dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
     mesh = trimesh.Trimesh(vertices=point_cloud, faces=hull.simplices)
     denser_pcd, _ = trimesh.sample.sample_surface(mesh, sample_count)
 
-    return denser_pcd
+    return np.array(denser_pcd)
 
 
 def uniform_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:

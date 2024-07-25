@@ -33,9 +33,9 @@ def panda_xyz_direction_quant(
 def panda_x_direction_quant(target_direction: list)->np.ndarray:
     x, y, z=target_direction[0], target_direction[1], target_direction[2]
     rotation_matrix = np.array([
-        [x, y, 0],
-        [y, -x, 0],
-        [z, 0, -1]
+        [x, y, x*z],
+        [y, -x, y*z],
+        [z, 0, -x*x-y*y]
     ])
 
     return quat.mat2quat(rotation_matrix)
