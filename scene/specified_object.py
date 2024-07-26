@@ -1,12 +1,16 @@
 from sapien.core import Articulation
 from sapien.core import RenderBody
+import sapien.core as sapien
 import numpy as np
 
-from perception.core import get_pcd_from_articulation
+from perception.core import get_pcd_from_articulation, get_pcd_normals_from_articulation
+from scene.core import SpecifiedObject
 
 
-class Drawer:
+class Drawer(SpecifiedObject):
     def __init__(self, drawer_body: Articulation, name=None):
+        super().__init__()
+
         self.drawer_body = drawer_body
         if name!=None:
             self.drawer_body.set_name(name)
@@ -28,6 +32,11 @@ class Drawer:
         return self.drawer_body.get_name()
     
 
+    def get_pose(self)->sapien.Pose:
+        # Notice: the pose of drawer body may be different from the handle pose
+        return self.drawer_body.get_pose()
+    
+
     def get_handle_by_name(self, obj_name: str)-> RenderBody:
         for handle in self.handle_list:
             if handle.get_name()==obj_name:
@@ -43,6 +52,9 @@ class Drawer:
     
     def get_pcd(self)->np.ndarray: 
         return get_pcd_from_articulation(self.drawer_body)
+    
+    def get_pcd_normals(self)->np.ndarray:
+        return get_pcd_normals_from_articulation(self.drawer_body)
 
 
     def get_handle_pcd_by_name(self, handle_name: str)->np.ndarray:
@@ -85,3 +97,4 @@ class Drawer:
         for handle, open_limit in zip(self.handle_list, self.handle_open_limits):
             if handle.get_name()==handle_name:
                 return open_limit
+        return None

@@ -1,17 +1,21 @@
 import sapien.core as sapien
-from sapien.core import Pose, Actor
+from sapien.core import Pose, Actor, Articulation
 from sapien.utils import Viewer
 import numpy as np
 from transforms3d import euler
 from scipy.spatial import ConvexHull
-from typing import Tuple
+from typing import Tuple, Union
 import quaternion
 
 from .core import Move_Tool
-from perception import get_pcd_from_actor, get_actor_by_name, get_normals_from_actor
+from perception import get_pcd_from_actor, \
+    get_pcd_from_obj, \
+    get_actor_by_name, \
+    get_normals_from_actor, \
+    get_pcd_normals_from_obj
 from transforms3d import euler, quaternions
 from utils import panda_x_direction_quant, panda_z_direction_quant
-from scene.core import TaskScene
+from scene.core import TaskScene, SpecifiedObject
 from scene.specified_object import Drawer
 
 # the distance between the move group center with the grippers center
@@ -143,30 +147,36 @@ class PandaPrimitives:
             direction:list,
             distance:float,
     ):
+        assert len(direction)==2 or len(direction)==3, "The direction shape is invalid." 
+        if len(direction)==2:
+            direction=np.concatenate((direction,[0]))
+        direction = direction/np.linalg.norm(direction)
+        
         def _compute_pose_for_push(
                 object_name:str, 
                 direction:list, 
                 distance:float
         )-> Pose:
-            object = get_actor_by_name(self.scene, object_name)
-            obj_pcd = get_pcd_from_actor(object)
+            obj = self.task_scene.get_object_by_name(object_name)
+            obj_pcd = get_pcd_from_obj(obj)
             obj_center = np.mean(obj_pcd, axis=0)
-            long_axis = np.linalg.norm(np.max(obj_pcd, axis=0)[:2]-np.min(obj_pcd, axis=0)[:2])
 
-            direction = direction/np.linalg.norm(direction)
-            if len(direction)==2:
-                direction=np.concatenate((direction, [0.2]))
-            direction = direction/np.linalg.norm(direction)
+            projections = np.dot(obj_pcd, direction)
+            long_axis = projections.max() - projections.min()
+
+            # Make the gripper pushing plane parellel with the object pushed plane
+            gripper_x_direction = direction+[0, 0, 0.2]            
+            gripper_x_direction = gripper_x_direction/np.linalg.norm(gripper_x_direction)
+
             pose_pre_push, pose_post_push = sapien.Pose(), sapien.Pose()
-
             # The z value should be a little bigger than 0 (z value of the table top), 
             # or the collision avoidance equation will never be solved,
             # because the gripper will always contact with the table top  
-            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) - np.array([direction[0], direction[1], 0]) * (long_axis + 0.02))
-            pose_pre_push.set_q(panda_x_direction_quant(direction))
+            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) - direction * (long_axis/2+0.02))
+            pose_pre_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
-            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) + np.array([direction[0], direction[1], 0]) * distance)
-            pose_post_push.set_q(panda_x_direction_quant(direction))
+            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) + direction * distance)
+            pose_post_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
             return pose_pre_push, pose_post_push
         
@@ -214,11 +224,10 @@ class PandaPrimitives:
             object_name:str,
     ):
         def _compute_pose_for_pick(
-                actor: Actor, 
+                obj: Union[Actor,Articulation,SpecifiedObject], 
                 pushin_more=True
         )-> Tuple[Pose, Pose]:
-            pcd = get_pcd_from_actor(actor)
-            pcd_normals = get_normals_from_actor(actor, pcd)
+            pcd, pcd_normals = get_pcd_normals_from_obj(obj)
             
             pointing_down = pcd_normals[:, 2] < 0.0
             P = np.ones(shape=len(pcd), dtype=np.float64)
@@ -314,7 +323,7 @@ class PandaPrimitives:
 
         self._open_gripper()
 
-        grasp_pose, pregrasp_pose = _compute_pose_for_pick(get_actor_by_name(self.scene, object_name))
+        grasp_pose, pregrasp_pose = _compute_pose_for_pick(self.task_scene.get_object_by_name(object_name))
         if grasp_pose==None or pregrasp_pose==None:
             return -1
 
@@ -344,9 +353,8 @@ class PandaPrimitives:
             self,
             object_name:str,
     ):
-        def _compute_pose_for_place(actor: Actor) -> Tuple[Pose, Pose]:
-            pcd = get_pcd_from_actor(actor)
-            pcd_normals = get_normals_from_actor(actor, pcd)
+        def _compute_pose_for_place(obj: Union[Actor,Articulation,SpecifiedObject]) -> Tuple[Pose, Pose]:
+            pcd, pcd_normals = get_pcd_normals_from_obj(obj)
             filter_out_mask = pcd_normals[:, 2] < 0.95
 
             pcd_upward = pcd[~filter_out_mask]
@@ -404,7 +412,7 @@ class PandaPrimitives:
             return place_pose, preplace_pose
 
 
-        place_pose, preplace_pose = _compute_pose_for_place(get_actor_by_name(self.scene, object_name))
+        place_pose, preplace_pose = _compute_pose_for_place(self.task_scene.get_object_by_name(object_name))
         if place_pose==None or preplace_pose==None:
             return -1
 
@@ -498,7 +506,7 @@ class PandaPrimitives:
             handle_half_length = (tmp_projection.max() - tmp_projection.min())/2
 
 
-        assert "handle" in handle_name, "Only the handle of target object is graspable"
+        assert "handle" in handle_name, "Only the handle of target object is graspable."
 
         self._open_gripper()
 

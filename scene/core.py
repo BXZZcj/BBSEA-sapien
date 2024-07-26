@@ -1,11 +1,24 @@
 import sapien.core as sapien
 from sapien.utils import Viewer
 import numpy as np
+from typing import Union
 
-from perception import get_actor_names_in_scene, \
-    get_actor_by_name, \
-    get_pcd_from_actor
-from perception.scene_graph import SceneGraph, Node
+
+class SpecifiedObject:
+    def __init__(self):
+        pass
+
+    def get_name(self):
+        pass
+
+    def get_pose(self)->sapien.Pose:
+        pass
+
+    def get_pcd(self)->np.ndarray:
+        pass
+
+    def get_pcd_normals(self)->np.ndarray:
+        pass
 
 
 class TaskScene():
@@ -39,12 +52,26 @@ class TaskScene():
         self.primitives = None
 
 
-    def get_object_list(self):
+    def get_object_list(self)->list:
         return self.object_list
     
 
-    def get_robot_list(self):
+    def get_object_by_name(self, name)->Union[sapien.Actor,SpecifiedObject]:
+        for obj in self.object_list:
+            if obj.get_name()==name:
+                return obj
+        return None
+    
+
+    def get_robot_list(self)->list:
         return self.robot_list
+    
+
+    def get_robot_by_name(self, name)->sapien.Articulation:
+        for robot in self.robot_list:
+            if robot.get_name()==name:
+                return robot
+        return None
 
 
     def _create_tabletop(self) -> None:
@@ -53,22 +80,6 @@ class TaskScene():
     def _create_robot(self) -> None:
         pass
 
-    def get_scene_graph(self):
-        self.scenegraph=SceneGraph()
-        actor_names = get_actor_names_in_scene(scene=self.scene)
-        # eliminate the "ground" actor
-        actor_names = [actor_name for actor_name in actor_names if actor_name != "ground"]
-
-        for name in actor_names:
-            actor = get_actor_by_name(scene=self.scene, name=name)
-            pcd = get_pcd_from_actor(actor)
-            if actor.get_builder().get_visuals()[0].type=="Box":
-                pcd = dense_sample_convex_pcd(pcd)
-            node=Node(name, pcd)
-            self.scenegraph.add_node_wo_state(node)
-
-        return self.scenegraph
-
 
     def demo(self, step = False) -> None:
         while not self.viewer.closed:
@@ -76,6 +87,8 @@ class TaskScene():
                 self.scene.step()
             self.scene.update_render()
             self.viewer.render()
+
+
 
 if __name__ == '__main__':
     demo = TaskScene()

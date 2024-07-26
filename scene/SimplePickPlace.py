@@ -15,6 +15,7 @@ from perception import get_pcd_from_actor
 from perception.scene_graph import SceneGraph, Node
 from scene.core import TaskScene
 from scene.specified_object import Drawer
+from utils import load_partnet_mobility
 
 
 class SimplePickPlaceScene(TaskScene):
@@ -143,17 +144,17 @@ class SimplePickPlaceScene(TaskScene):
         #     name='champagne',
         # )
 
-        # # Load the drawer into the Task Scene
-        # self.drawer45290 = Drawer(
-        #     load_partnet_mobility(
-        #         task_scene=self,
-        #         urdf_file_path=manipulate_root_path+"assets/object/partnet-mobility/45290/mobility.urdf",
-        #         scale=0.3,
-        #         pose=sapien.Pose([0.56, -0.45, 0.240578], euler.euler2quat(0,0,-np.pi/2)),
-        #         name="drawer45290"
-        #     )
-        # )
-        # self.object_list.append(self.drawer45290)
+        # Load the drawer into the Task Scene
+        self.drawer45290 = Drawer(
+            load_partnet_mobility(
+                task_scene=self,
+                urdf_file_path=manipulate_root_path+"assets/object/partnet-mobility/45290/mobility.urdf",
+                scale=0.3,
+                pose=sapien.Pose([0.56, -0.45, 0.240578], euler.euler2quat(0,0,-np.pi/2)),
+                name="drawer45290"
+            )
+        )
+        self.object_list.append(self.drawer45290)
 
 
     def _create_robot(self) -> None:
@@ -173,8 +174,6 @@ class SimplePickPlaceScene(TaskScene):
 
 
     def get_scene_graph(self):
-        # self.drawer45290.drawer_body.get_active_joints()[2].get_limits
-        # self.drawer45290.drawer_body.get_active_joints()[2].
         self.scenegraph=SceneGraph()
 
         for obj in self.object_list:
