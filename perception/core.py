@@ -132,13 +132,15 @@ def _get_pcd_from_single_actor(actor: Actor, vis_body: RenderBody) -> np.ndarray
     render_shape = vis_body.get_render_shapes()[0]
     vertices = render_shape.mesh.vertices
 
-    actor_type = actor.get_builder().get_visuals()[0].type
-    if actor_type == "Box":
+    vis_body_type = vis_body.type
+    if vis_body_type == "box":
         vertices = _dense_sample_convex_pcd(vertices * actor.get_builder().get_visuals()[0].scale)
-    elif actor_type == "Sphere":
+    elif vis_body_type == "sphere":
         vertices = vertices * actor.get_builder().get_visuals()[0].radius
-    elif actor_type == "Capsule" or actor_type == "File":
+    elif vis_body_type == "capsule":
         vertices = vertices
+    elif vis_body_type == "mesh":
+        vertices = vertices * vis_body.scale
 
     tf_mat = actor.get_pose().to_transformation_matrix() @ vis_body.local_pose.to_transformation_matrix()
     vertices_homo = np.concatenate((vertices, np.ones((vertices.shape[0],1))), axis=-1)

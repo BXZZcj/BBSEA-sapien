@@ -14,9 +14,9 @@ from perception import get_pcd_from_actor, \
     get_normals_from_actor, \
     get_pcd_normals_from_obj
 from transforms3d import euler, quaternions
-from utils import panda_x_direction_quant, panda_z_direction_quant
+from utils import panda_x_direction_quant, panda_z_direction_quant, panda_xyz_direction_quant
 from scene.core import TaskScene, SpecifiedObject
-from scene.specified_object import Drawer
+from scene.specified_object import StorageFurniture
 
 # the distance between the move group center with the grippers center
 DMG2G = 0.1
@@ -482,29 +482,68 @@ class PandaPrimitives:
 
     def PrismaticJointOpen(self, handle_name: str):
         def _compute_pose_for_grasp(handle_name: str):
-            handle_parent_name=handle_name.split("_")[0]
-            for obj in self.task_scene.get_object_list():
-                if obj.get_name() == handle_parent_name:
-                    handle_parent: Drawer = obj
-                    break
+            handle_parent_name = handle_name.split("_")[0]
+            handle_parent : StorageFurniture = self.task_scene.get_object_by_name(handle_parent_name)
             
             handle_pcd = handle_parent.get_handle_pcd_by_name(handle_name)
             parent_pcd = handle_parent.get_pcd()
 
-            handle_center = handle_pcd.mean()
-            parent_center = parent_pcd.mean()
-            # We assume the pull direction would be parellel with the horizontal ground
+            handle_center = handle_pcd.mean(axis=0)
+            parent_center = parent_pcd.mean(axis=0)
+
             pull_direction = handle_center[:2] - parent_center[:2]
+            # We assume the pull direction would be parellel with the horizontal ground
+            pull_direction = np.concatenate((pull_direction, [0]))
             pull_direction = pull_direction / np.linalg.norm(pull_direction)
 
-            base_grasp_pose = sapien.Pose()
-            base_grasp_pose.set_p(handle_parent.get_handle_pcd_by_name(handle_name).mean(axis=0))
-            base_grasp_pose.set_q(panda_z_direction_quant(-pull_direction))
-
             handle_direction = np.cross(pull_direction, np.array([0,0,1]))
-            tmp_projection = np.dot(handle_pcd, handle_direction)
-            handle_half_length = (tmp_projection.max() - tmp_projection.min())/2
+            handle_direction = handle_direction/np.linalg.norm(handle_direction)
+            _tmp_projection = np.dot(handle_pcd, handle_direction)
+            handle_half_length = (_tmp_projection.max() - _tmp_projection.min())/2
 
+            _tmp_projection = np.dot(handle_pcd, pull_direction)
+            handle_radius = (_tmp_projection.max() - _tmp_projection.min())/2
+
+            sample_count = 1000
+            p_bias_candidate = np.linspace(-handle_half_length, handle_half_length, sample_count)
+            P=2-2*np.abs(np.linspace(-1,1, sample_count))
+            P=P/P.sum()
+            p_bias = p_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            
+            grasp_pose=sapien.Pose()
+            grasp_pose.set_p(handle_parent.get_handle_pcd_by_name(handle_name).mean(axis=0) + 
+                             p_bias * handle_direction - 
+                             3*handle_radius * pull_direction)
+
+            sample_count = 1000
+            P=2-2*np.abs(np.linspace(-1,1, sample_count))
+            P=P/P.sum()
+            q_x_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
+            q_y_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
+            q_z_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
+            q_x_bias = q_x_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            q_y_bias = q_y_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            q_z_bias = q_z_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            
+            base_z_direction = -pull_direction
+            base_z_direction=base_z_direction/np.linalg.norm(base_z_direction)
+            base_x_direction = np.cross([0,0,1], base_z_direction)
+            base_x_direction=base_x_direction/np.linalg.norm(base_x_direction)
+            base_y_direction = np.cross(base_z_direction, base_x_direction)
+            base_y_direction=base_y_direction/np.linalg.norm(base_y_direction)
+
+            R = euler.euler2mat(q_z_bias, q_y_bias, q_x_bias, axes='rzyx')
+
+            grasp_x_direction = (R@base_x_direction.T).T
+            grasp_y_direction = (R@base_y_direction.T).T
+            grasp_z_direction = (R@base_z_direction.T).T
+            grasp_pose.set_q(panda_xyz_direction_quant(grasp_x_direction, grasp_y_direction, grasp_z_direction))
+
+            pre_grasp_pose=sapien.Pose()
+            pre_grasp_pose.set_p(grasp_pose.p+pull_direction*np.random.uniform(0.2, 0.3))
+            pre_grasp_pose.set_q(grasp_pose.q)
+
+            return grasp_pose, pre_grasp_pose
 
         assert "handle" in handle_name, "Only the handle of target object is graspable."
 

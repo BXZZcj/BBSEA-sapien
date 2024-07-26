@@ -14,7 +14,7 @@ from config import manipulate_root_path
 from perception import get_pcd_from_actor
 from perception.scene_graph import SceneGraph, Node
 from scene.core import TaskScene
-from scene.specified_object import Drawer
+from scene.specified_object import StorageFurniture
 from utils import load_partnet_mobility
 
 
@@ -144,17 +144,17 @@ class SimplePickPlaceScene(TaskScene):
         #     name='champagne',
         # )
 
-        # Load the drawer into the Task Scene
-        self.drawer45290 = Drawer(
+        # Load the StorageFurniture into the Task Scene
+        self.StorageFurniture45290 = StorageFurniture(
             load_partnet_mobility(
                 task_scene=self,
                 urdf_file_path=manipulate_root_path+"assets/object/partnet-mobility/45290/mobility.urdf",
                 scale=0.3,
                 pose=sapien.Pose([0.56, -0.45, 0.240578], euler.euler2quat(0,0,-np.pi/2)),
-                name="drawer45290"
+                name="StorageFurniture45290"
             )
         )
-        self.object_list.append(self.drawer45290)
+        self.object_list.append(self.StorageFurniture45290)
 
 
     def _create_robot(self) -> None:
@@ -181,12 +181,19 @@ class SimplePickPlaceScene(TaskScene):
                 pcd = get_pcd_from_actor(obj)
                 node=Node(obj.get_name(), pcd)
                 self.scenegraph.add_node_wo_state(node)
-            elif type(obj)==Drawer:
+            elif type(obj)==StorageFurniture:
                 node=Node(obj.get_name(), obj.get_pcd())
                 self.scenegraph.add_node_wo_state(node)
                 for handle_name in obj.get_handle_name_list():
                     handle_pcd = obj.get_handle_pcd_by_name(handle_name)
-                    node = Node(handle_name + f" with open degree: {(obj.get_open_degree_by_name(handle_name)*100):.0f}%", handle_pcd)
+                    node = Node(handle_name, handle_pcd)
+                    self.scenegraph.add_node_wo_state(node)
+                for drawer_name in obj.get_drawer_name_list():
+                    drawer_pcd = obj.get_drawer_pcd_by_name(drawer_name)
+                    handle = obj.get_handle_by_drawer(obj.get_drawer_by_name(drawer_name))
+                    node = Node(drawer_name + \
+                                f" with open degree: {obj.get_open_distance_by_name(handle.get_name())} / {obj.get_open_limit_by_name(handle.get_name()):.2f}", 
+                                drawer_pcd)
                     self.scenegraph.add_node_wo_state(node)
 
         return self.scenegraph
