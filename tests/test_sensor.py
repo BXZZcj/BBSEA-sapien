@@ -157,6 +157,14 @@ class SimplePickPlaceScene(TaskScene):
             self.scene.update_render()
             self.viewer.render()
 
+    def step(
+            self, 
+            render_step: int = 1, 
+            n_render_step: int = 1
+    ):
+        pass
+
+
 
 if __name__ == '__main__':
     demo=SimplePickPlaceScene()

@@ -93,11 +93,9 @@ class PandaPrimitives:
             self.robot.robot_articulation.set_qf(qf)
             for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
                 joint.set_drive_target(target)   
-            self.robot.robot_articulation.set_qpos(self.robot.robot_articulation.get_qpos())     
-            self.task_scene.scene.step()
-            if i % self.n_render_step == 0:
-                self.task_scene.scene.update_render()
-                self.task_scene.viewer.render()
+            self.robot.robot_articulation.set_qpos(self.robot.robot_articulation.get_qpos())  
+
+            self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
 
         # We assume when the gripper opens, the grasped object will fall
         self.grasped_obj = None
@@ -115,11 +113,9 @@ class PandaPrimitives:
             qf = self.robot.robot_articulation.compute_passive_force(
                 gravity=True, 
                 coriolis_and_centrifugal=True)
-            self.robot.robot_articulation.set_qf(qf)
-            self.task_scene.scene.step()
-            if i % self.n_render_step == 0:
-                self.task_scene.scene.update_render()
-                self.task_scene.viewer.render()
+            self.robot.robot_articulation.set_qf(qf)   
+
+            self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
 
 
     def Push(

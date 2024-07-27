@@ -80,6 +80,16 @@ class TaskScene():
     def _create_robot(self) -> None:
         pass
 
+    def step(
+            self, 
+            render_step:int = 1, 
+            n_render_step:int = 1,
+        ) -> None:
+        self.scene.step()
+        if render_step % n_render_step == 0:
+            self.scene.update_render()
+            self.viewer.render()
+
 
     def demo(self, step = False) -> None:
         while not self.viewer.closed:

@@ -119,10 +119,7 @@ class Move_Tool():
                 for j in range(n_driven_joints):
                     active_joints[j].set_drive_target(result['position'][i][j])
                     active_joints[j].set_drive_velocity_target(result['velocity'][i][j])
-                scene.step()
-                if i % n_render_step == 0:
-                    scene.update_render()
-                    self.task_scene.viewer.render()
+                self.task_scene.step(render_step=i, n_render_step=n_render_step)
         
 
         planner=self.setup_planner(
