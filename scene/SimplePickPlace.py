@@ -24,14 +24,8 @@ class SimplePickPlaceScene(TaskScene):
 
         self.primitives = PandaPrimitives(
             self,
-            viewer=self.viewer,
-            robot=self.panda_robot, 
-            urdf_file_path=self.panda_robot_urdf_path,
-            srdf_file_path=self.panda_robot_srdf_path,
-            gripper=self.move_group,
+            robot=self.panda_robot,
             time_step=self.timestep,
-            joint_vel_limits=np.ones(7),
-            joint_acc_limits=np.ones(7),
         )
 
 
@@ -158,17 +152,16 @@ class SimplePickPlaceScene(TaskScene):
 
 
     def _create_robot(self) -> None:
-        self.panda_robot_urdf_path=manipulate_root_path+"assets/robot/panda/panda.urdf"
-        self.panda_robot_srdf_path=manipulate_root_path+"assets/robot/panda/panda.srdf"
-        self.move_group="panda_hand"
         # Robot
         # Load URDF
-        self.init_qpos=[0, 0.19634954084936207, 0.0, -2.617993877991494, 0.0, 2.941592653589793, 0.7853981633974483, 0, 0]
         self.panda_robot=load_robot(
             task_scene=self,
             pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
-            init_qpos=self.init_qpos,
-            urdf_file_path=self.panda_robot_urdf_path,
+            init_qpos=[0, 0.19634954084936207, 0.0, -2.617993877991494, 0.0, 2.941592653589793, 0.7853981633974483, 0, 0],
+            urdf_file_path=manipulate_root_path+"assets/robot/panda/panda.urdf",
+            srdf_file_path=manipulate_root_path+"assets/robot/panda/panda.srdf",
+            move_group="panda_hand",
+            active_joints_num_wo_MG=7,
             name="panda_robot",
         )
 

@@ -196,3 +196,37 @@ class Drawer(SpecifiedObject):
             open_distance_list.pop(0)
 
         return id_open_distance_hash[self.drawer.id]
+    
+
+class Robot(SpecifiedObject):
+    def __init__(self, 
+            robot_articulation: Articulation, 
+            urdf_file_path:str,
+            srdf_file_path:str,
+            move_group:str,
+            active_joints_num_wo_MG:int,
+            name:str=None
+        ):
+        super().__init__()
+
+        self.robot_articulation=robot_articulation
+        self.urdf_file_path=urdf_file_path
+        self.srdf_file_path=srdf_file_path
+        self.move_group=move_group
+        self.active_joints_num_wo_MG=active_joints_num_wo_MG
+        self.joint_vel_limits=np.ones(active_joints_num_wo_MG)
+        self.joint_acc_limits=np.ones(active_joints_num_wo_MG)
+        
+        if name!=None:
+            self.robot.set_name(name)
+
+    def set_joint_vel_limits(self, joint_vel_limits:np.ndarray):
+        assert len(joint_vel_limits)==self.active_joints_num_wo_MG, \
+            "The length of joint_vel_limits should be the same as the active joints number except the move group."
+        self.joint_vel_limits=joint_vel_limits
+
+
+    def set_joint_acc_limits(self, joint_acc_limits:np.ndarray):
+        assert len(joint_acc_limits)==self.active_joints_num_wo_MG, \
+            "The length of joint_acc_limits should be the same as the active joints number except the move group."
+        self.joint_acc_limits=joint_acc_limits

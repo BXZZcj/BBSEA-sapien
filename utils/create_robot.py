@@ -4,6 +4,7 @@ import numpy as np
 from sapien.utils.viewer import Viewer
 
 from scene.core import TaskScene
+from scene.specified_object import Robot
 
 
 def load_robot(
@@ -11,11 +12,14 @@ def load_robot(
         pose: sapien.Pose,
         init_qpos: list,
         urdf_file_path: str,
+        srdf_file_path:str,
+        move_group:str,
+        active_joints_num_wo_MG:int,
         fix_root_link=True,
         uniform_stiffness=1000,
         uniform_damping=200,
         name='',
-) -> sapien.Articulation:
+) -> Robot:
     # Robot
     # Load URDF
     scene = task_scene.scene
@@ -31,9 +35,16 @@ def load_robot(
 
     # Used for PID control
     active_joints = robot.get_active_joints()
-    for joint_idx, joint in enumerate(active_joints):
+    for joint in active_joints:
         joint.set_drive_property(stiffness=uniform_stiffness, damping=uniform_damping)
 
-    task_scene.robot_list.append(robot)
+    robot_specified_object=Robot(
+        robot_articulation=robot,
+        urdf_file_path=urdf_file_path,
+        srdf_file_path=srdf_file_path,
+        move_group=move_group,
+        active_joints_num_wo_MG=active_joints_num_wo_MG,
+    )
+    task_scene.robot_list.append(robot_specified_object)
 
-    return robot
+    return robot_specified_object

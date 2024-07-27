@@ -16,7 +16,7 @@ from perception import get_pcd_from_actor, \
 from transforms3d import euler, quaternions
 from utils import panda_x_direction_quant, panda_z_direction_quant, panda_xyz_direction_quant
 from scene.core import TaskScene, SpecifiedObject
-from scene.specified_object import StorageFurniture
+from scene.specified_object import StorageFurniture, Robot
 
 # the distance between the move group center with the grippers center
 DMG2G = 0.1
@@ -28,37 +28,18 @@ class PandaPrimitives:
     def __init__(
             self,
             task_scene: TaskScene,
-            viewer: Viewer,
-            robot: sapien.Articulation, 
-            urdf_file_path: str,
-            srdf_file_path: str,
-            gripper: str,
+            robot: Robot,
             time_step=1/100,
-            joint_vel_limits=[],
-            joint_acc_limits=[],
             n_render_step=4,
     ):
         self.task_scene = task_scene
-        self.viewer=viewer
-        self.scene=self.viewer.scene
         self.robot=robot
-        self.urdf_file_path=urdf_file_path
-        self.srdf_file_path=srdf_file_path
-        self.gripper=gripper
         self.time_step=time_step
-        self.joint_vel_limits=joint_vel_limits
-        self.joint_acc_limits=joint_acc_limits
         self.n_render_step=n_render_step
 
         self.move_tool = Move_Tool(   
-            self.scene,
-            self.viewer,
-            self.robot, 
-            self.urdf_file_path,
-            self.srdf_file_path,
-            self.gripper,
-            self.joint_vel_limits,
-            self.joint_acc_limits,
+            self.task_scene,
+            self.robot,
             )    
         
         self.grasped_obj = None
@@ -101,22 +82,22 @@ class PandaPrimitives:
             target=0.4
     ) -> None:
         # This disturbation aims to make the gripper open process more stable.
-        disturbation=self.robot.get_links()[-3].get_pose()
+        disturbation=self.robot.robot_articulation.get_links()[-3].get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
         for i in range(100): 
-            qf = self.robot.compute_passive_force(
+            qf = self.robot.robot_articulation.compute_passive_force(
                 gravity=True, 
                 coriolis_and_centrifugal=True)
-            self.robot.set_qf(qf)
-            for joint in self.robot.get_active_joints()[-2:]:
+            self.robot.robot_articulation.set_qf(qf)
+            for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
                 joint.set_drive_target(target)   
-            self.robot.set_qpos(self.robot.get_qpos())     
-            self.scene.step()
+            self.robot.robot_articulation.set_qpos(self.robot.robot_articulation.get_qpos())     
+            self.task_scene.scene.step()
             if i % self.n_render_step == 0:
-                self.scene.update_render()
-                self.viewer.render()
+                self.task_scene.scene.update_render()
+                self.task_scene.viewer.render()
 
         # We assume when the gripper opens, the grasped object will fall
         self.grasped_obj = None
@@ -124,21 +105,21 @@ class PandaPrimitives:
 
     def _close_gripper(self) -> None:
         # This disturbation aims to make the gripper close process more stable.
-        disturbation=self.robot.get_links()[-3].get_pose()
+        disturbation=self.robot.robot_articulation.get_links()[-3].get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
-        for joint in self.robot.get_active_joints()[-2:]:
+        for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
             joint.set_drive_target(0)
         for i in range(100):  
-            qf = self.robot.compute_passive_force(
+            qf = self.robot.robot_articulation.compute_passive_force(
                 gravity=True, 
                 coriolis_and_centrifugal=True)
-            self.robot.set_qf(qf)
-            self.scene.step()
+            self.robot.robot_articulation.set_qf(qf)
+            self.task_scene.scene.step()
             if i % self.n_render_step == 0:
-                self.scene.update_render()
-                self.viewer.render()
+                self.task_scene.scene.update_render()
+                self.task_scene.viewer.render()
 
 
     def Push(
@@ -172,7 +153,7 @@ class PandaPrimitives:
             # The z value should be a little bigger than 0 (z value of the table top), 
             # or the collision avoidance equation will never be solved,
             # because the gripper will always contact with the table top  
-            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) - direction * (long_axis/2+0.02))
+            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) - direction * (long_axis/2+0.05))
             pose_pre_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
             pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) + direction * distance)
@@ -314,7 +295,7 @@ class PandaPrimitives:
             panda_q_mirror1 = panda_x_direction_quant(panda_x_direction_mirror1)
             panda_q_mirror2 = panda_x_direction_quant(panda_x_direction_mirror2)
 
-            panda_gripper_q_cur = self.robot.get_links()[-3].get_pose().q.tolist()
+            panda_gripper_q_cur = self.robot.robot_articulation.get_links()[-3].get_pose().q.tolist()
 
             final_gripper_q = panda_q_mirror1 if sum(panda_gripper_q_cur*panda_q_mirror1) < sum(panda_gripper_q_cur*panda_q_mirror2) else panda_q_mirror2
             
@@ -386,7 +367,7 @@ class PandaPrimitives:
                 # computer gripper position
                 contact_position = pcd_upward[candidate_indices].copy().mean(axis=0)
 
-                grasped_obj_pcd = get_pcd_from_actor(get_actor_by_name(self.scene, self.grasped_obj))
+                grasped_obj_pcd = get_pcd_from_actor(get_actor_by_name(self.task_scene.scene, self.grasped_obj))
                 pcd_projections = np.dot(grasped_obj_pcd, place_z_direction)
                 span = np.max(pcd_projections) - np.min(pcd_projections)
                 gripper_deep = 0.05
@@ -444,12 +425,12 @@ class PandaPrimitives:
         def _compute_pose_for_place(place_pos):
             place_pose = Pose(
                 p = place_pos,
-                q = self.robot.get_links()[-3].get_pose().q
+                q = self.robot.robot_articulation.get_links()[-3].get_pose().q
             )
 
             preplace_pose = Pose(
                 p = place_pos + np.random.uniform(0.2, 0.3) * np.array([0,0,1]),
-                q = self.robot.get_links()[-3].get_pose().q
+                q = self.robot.robot_articulation.get_links()[-3].get_pose().q
             )
 
             return place_pose, preplace_pose 
@@ -540,7 +521,7 @@ class PandaPrimitives:
             grasp_pose.set_q(panda_xyz_direction_quant(grasp_x_direction, grasp_y_direction, grasp_z_direction))
 
             pre_grasp_pose=sapien.Pose()
-            pre_grasp_pose.set_p(grasp_pose.p+pull_direction*np.random.uniform(0.2, 0.3))
+            pre_grasp_pose.set_p(grasp_pose.p+pull_direction*np.random.uniform(0.1, 0.2))
             pre_grasp_pose.set_q(grasp_pose.q)
 
             return grasp_pose, pre_grasp_pose

@@ -54,7 +54,7 @@ class TaskScene():
 
     def get_object_list(self)->list:
         return self.object_list
-    
+
 
     def get_object_by_name(self, name)->Union[sapien.Actor,SpecifiedObject]:
         for obj in self.object_list:
