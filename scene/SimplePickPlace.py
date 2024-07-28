@@ -2,6 +2,7 @@ import sapien.core as sapien
 from sapien.utils import Viewer
 import numpy as np
 from transforms3d import euler
+import os
 
 from utils import create_box, \
     create_capsule, \
@@ -25,7 +26,6 @@ class SimplePickPlaceScene(TaskScene):
         self.primitives = PandaPrimitives(
             self,
             robot=self.panda_robot,
-            time_step=self.timestep,
         )
 
 
@@ -103,8 +103,8 @@ class SimplePickPlaceScene(TaskScene):
             self, 
             self.renderer,
             sapien.Pose(p=[0.2+0.46, 0, 0.01865]), 
-            collision_file_path=manipulate_root_path+'assets/object/banana/collision_meshes/collision.obj',
-            visual_file_path=manipulate_root_path+'assets/object/banana/visual_meshes/visual.dae',
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/banana/collision_meshes/collision.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/banana/visual_meshes/visual.dae'),
             name='banana',
         )
 
@@ -142,7 +142,7 @@ class SimplePickPlaceScene(TaskScene):
         self.StorageFurniture45290 = StorageFurniture(
             load_partnet_mobility(
                 task_scene=self,
-                urdf_file_path=manipulate_root_path+"assets/object/partnet-mobility/45290/mobility.urdf",
+                urdf_file_path=os.path.join(manipulate_root_path,"assets/object/partnet-mobility/45290/mobility.urdf"),
                 scale=0.3,
                 pose=sapien.Pose([0.56, -0.45, 0.240578], euler.euler2quat(0,0,-np.pi/2)),
                 name="StorageFurniture45290"
@@ -158,8 +158,8 @@ class SimplePickPlaceScene(TaskScene):
             task_scene=self,
             pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
             init_qpos=[0, 0.19634954084936207, 0.0, -2.617993877991494, 0.0, 2.941592653589793, 0.7853981633974483, 0, 0],
-            urdf_file_path=manipulate_root_path+"assets/robot/panda/panda.urdf",
-            srdf_file_path=manipulate_root_path+"assets/robot/panda/panda.srdf",
+            urdf_file_path=os.path.join(manipulate_root_path,"assets/robot/panda/panda.urdf"),
+            srdf_file_path=os.path.join(manipulate_root_path,"assets/robot/panda/panda.srdf"),
             move_group="panda_hand",
             active_joints_num_wo_MG=7,
             name="panda_robot",

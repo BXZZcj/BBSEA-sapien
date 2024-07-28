@@ -28,8 +28,8 @@ class TaskScene():
         self.engine.set_renderer(self.renderer)
         
         self.scene = self.engine.create_scene(sapien.SceneConfig())
-        self.timestep = 1 / 100.0
-        self.scene.set_timestep(1 / 100.0)
+        self.time_step = 1 / 100.0
+        self.scene.set_timestep(self.time_step)
         self.scene.add_ground(-1)
         self.scene.default_physical_material = self.scene.create_physical_material(static_friction=1, dynamic_friction=1, restitution=0.0)
         self.scene.set_ambient_light(color=[0.5, 0.5, 0.5])

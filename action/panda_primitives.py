@@ -29,12 +29,10 @@ class PandaPrimitives:
             self,
             task_scene: TaskScene,
             robot: Robot,
-            time_step=1/100,
             n_render_step=4,
     ):
         self.task_scene = task_scene
         self.robot=robot
-        self.time_step=time_step
         self.n_render_step=n_render_step
 
         self.move_tool = Move_Tool(   
@@ -73,7 +71,6 @@ class PandaPrimitives:
             collision_avoid_all_except,
             guarantee_screw_mp,
             self.n_render_step,
-            self.time_step,
             )
     
 
@@ -84,18 +81,26 @@ class PandaPrimitives:
         # This disturbation aims to make the gripper open process more stable.
         disturbation=self.robot.robot_articulation.get_links()[-3].get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
-        self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
+        self._move_to_pose(disturbation, distinguish_gripper_movegroup=False) 
+        
 
+        for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
+            joint.set_drive_target(target)   
+        last_gripper_qpos=None
         for i in range(100): 
             qf = self.robot.robot_articulation.compute_passive_force(
                 gravity=True, 
                 coriolis_and_centrifugal=True)
-            self.robot.robot_articulation.set_qf(qf)
-            for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
-                joint.set_drive_target(target)   
-            self.robot.robot_articulation.set_qpos(self.robot.robot_articulation.get_qpos())  
+            self.robot.robot_articulation.set_qf(qf)  
 
             self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
+
+            # In case the range(100) is too long
+            current_gripper_qpos = self.robot.robot_articulation.get_qpos()[-2:]
+            if np.array_equal(current_gripper_qpos, last_gripper_qpos):
+                break
+            else:
+                last_gripper_qpos=current_gripper_qpos
 
         # We assume when the gripper opens, the grasped object will fall
         self.grasped_obj = None
@@ -109,13 +114,21 @@ class PandaPrimitives:
 
         for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
             joint.set_drive_target(0)
+        last_gripper_qpos=None
         for i in range(100):  
             qf = self.robot.robot_articulation.compute_passive_force(
-                gravity=True, 
+                gravity=True,
                 coriolis_and_centrifugal=True)
             self.robot.robot_articulation.set_qf(qf)   
 
             self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
+
+            # In case the range(100) is too long
+            current_gripper_qpos = self.robot.robot_articulation.get_qpos()[-2:]
+            if np.array_equal(current_gripper_qpos, last_gripper_qpos):
+                break
+            else:
+                last_gripper_qpos=current_gripper_qpos
 
 
     def Push(

@@ -102,11 +102,9 @@ class Move_Tool():
             collision_avoid_all_except=[],
             guarantee_screw_mp=False,
             n_render_step=4,
-            time_step=1/100,
     ) -> int:
         
         def follow_path(result: dict) -> None:
-            scene=self.task_scene.scene
             active_joints = self.robot.robot_articulation.get_active_joints()
             n_step = result['position'].shape[0]
             n_driven_joints=result['position'].shape[1]
@@ -131,11 +129,11 @@ class Move_Tool():
         
         pose_list = list(pose.p)+list(pose.q)
         # Screw Algo
-        result = planner.plan_screw(pose_list, self.robot.robot_articulation.get_qpos(), time_step=time_step, 
+        result = planner.plan_screw(pose_list, self.robot.robot_articulation.get_qpos(), time_step=self.task_scene.time_step, 
                                     use_point_cloud=~guarantee_screw_mp, use_attach=~guarantee_screw_mp)
         if result['status'] != "Success":
             # RTTConnect Algo
-            result = planner.plan_qpos_to_pose(pose_list, self.robot.robot_articulation.get_qpos(), time_step=time_step, verbose=True,
+            result = planner.plan_qpos_to_pose(pose_list, self.robot.robot_articulation.get_qpos(), time_step=self.task_scene.time_step,
                                                use_point_cloud=True, use_attach=True)
             if result['status'] != "Success":
                 return -1
