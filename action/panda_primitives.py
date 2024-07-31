@@ -2,7 +2,7 @@ import sapien.core as sapien
 from sapien.core import Pose, Actor, Articulation
 from sapien.utils import Viewer
 import numpy as np
-from transforms3d import euler
+from transforms3d import euler, axangles
 from scipy.spatial import ConvexHull
 from typing import Tuple, Union
 import quaternion
@@ -46,8 +46,8 @@ class PandaPrimitives:
     def _move_to_pose(
             self,
             gripper_pose: sapien.Pose,
-            collision_avoid_attach_actor="",
-            collision_avoid_actor="",
+            collision_avoid_attach_obj="",
+            collision_avoid_obj="",
             collision_avoid_all=False,
             collision_avoid_all_except=[],
             guarantee_screw_mp=False,
@@ -65,8 +65,8 @@ class PandaPrimitives:
 
         return self.move_tool.move_to_pose(
             move_group_pose,
-            collision_avoid_attach_actor,
-            collision_avoid_actor,
+            collision_avoid_attach_obj,
+            collision_avoid_obj,
             collision_avoid_all,
             collision_avoid_all_except,
             guarantee_screw_mp,
@@ -90,7 +90,9 @@ class PandaPrimitives:
         for i in range(100): 
             qf = self.robot.robot_articulation.compute_passive_force(
                 gravity=True, 
-                coriolis_and_centrifugal=True)
+                coriolis_and_centrifugal=True,
+                # external=False,
+            )
             self.robot.robot_articulation.set_qf(qf)  
 
             self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
@@ -118,7 +120,9 @@ class PandaPrimitives:
         for i in range(100):  
             qf = self.robot.robot_articulation.compute_passive_force(
                 gravity=True,
-                coriolis_and_centrifugal=True)
+                coriolis_and_centrifugal=True,
+                # external=False,
+            )
             self.robot.robot_articulation.set_qf(qf)   
 
             self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
@@ -155,17 +159,20 @@ class PandaPrimitives:
             long_axis = projections.max() - projections.min()
 
             # Make the gripper pushing plane parellel with the object pushed plane
-            gripper_x_direction = direction+[0, 0, 0.2]            
-            gripper_x_direction = gripper_x_direction/np.linalg.norm(gripper_x_direction)
+            # Especially when there is a camera mounted on the end effector
+            rot_ax = np.cross([0,0,1], direction)
+            rot_mx = axangles.axangle2mat(rot_ax, np.deg2rad(-55))
+            gripper_x_direction = rot_mx @ direction
+            gripper_x_direction = gripper_x_direction / np.linalg.norm(gripper_x_direction)
 
             pose_pre_push, pose_post_push = sapien.Pose(), sapien.Pose()
             # The z value should be a little bigger than 0 (z value of the table top), 
             # or the collision avoidance equation will never be solved,
             # because the gripper will always contact with the table top  
-            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) - direction * (long_axis/2+0.05))
+            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.03]) - direction * (long_axis/2+0.15))
             pose_pre_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
-            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.02]) + direction * distance)
+            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+0.03]) + direction * distance)
             pose_post_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
             return pose_pre_push, pose_post_push
@@ -193,6 +200,7 @@ class PandaPrimitives:
         self._open_gripper()
 
         if self._move_to_pose(push_pose_path[0], collision_avoid_all=True)==-1:
+            # raise Exception()
             print("Collision Avoidance Computation Fails.")
             if self._move_to_pose(push_pose_path[0])==-1:
                 print("Inverse Kinematics Computation Fails.")
@@ -329,7 +337,7 @@ class PandaPrimitives:
         
         self._close_gripper()
         
-        if self._move_to_pose(pregrasp_pose, collision_avoid_attach_actor=object_name)==-1:
+        if self._move_to_pose(pregrasp_pose, collision_avoid_attach_obj=object_name)==-1:
             print("Inverse Kinematics Computation Fails.")
             return -1
         

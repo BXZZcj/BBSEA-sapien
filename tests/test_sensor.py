@@ -1,5 +1,5 @@
 import sapien.core as sapien
-from sapien.core import CameraEntity, Actor, Pose, RenderMaterial
+from sapien.core import CameraEntity, Actor, Pose
 from sapien.utils import Viewer
 import numpy as np
 from transforms3d import euler
@@ -26,19 +26,32 @@ from utils import load_partnet_mobility
 class SimplePickPlaceScene(TaskScene):
     def __init__(self):
         super().__init__()
+        
+        self._set_ground_texture(texture_file=os.path.join(manipulate_root_path, "assets/ground_texture_1.jpg"))
 
         self.subtask_dir = None
         self.step_index = 0
 
-        self.backward_camera = self._set_camera(name="backward_camera")
-
-        for actor in self.scene.get_all_actors():
-            if actor.get_name()=="ground":
-                self.scene.remove_actor(actor)
-        render_material = self.renderer.create_material()
-        render_texture = self.renderer.create_texture_from_file(filename="/home/jiechu/Downloads/TCom_VinylChecker_header.jpg")
-        render_material.set_diffuse_texture(render_texture)
-        self.scene.add_ground(altitude=-1, render_material=render_material)
+        self.backward_camera = self._set_camera(
+            name="backward_camera",
+            camera_pose_origin=np.array([1.8, 0, 0.5]),
+            camera_pose_target=np.array([0,0,0]),
+        )
+        self.downward_camera = self._set_camera(
+            name="downward_camera",
+            camera_pose_origin=np.array([0.4,0,1.5]),
+            camera_pose_target=np.array([0.4,0,0]),
+        )
+        self.rightward_camera = self._set_camera(
+            name="rightward_camera",
+            camera_pose_origin=np.array([0.6,-1.2,0.5]),
+            camera_pose_target=np.array([0.6,0.3,0]),
+        )
+        self.leftward_camera = self._set_camera(
+            name="leftward_camera",
+            camera_pose_origin=np.array([0.6,1.2,0.5]),
+            camera_pose_target=np.array([0.6,-0.3,0]),
+        )
 
         self.viewer.toggle_axes(show=False)
         self.viewer.toggle_camera_lines(show=False)
@@ -47,6 +60,16 @@ class SimplePickPlaceScene(TaskScene):
             self,
             robot=self.panda_robot,
         )
+
+
+    def _set_ground_texture(self, texture_file:str):
+        for actor in self.scene.get_all_actors():
+            if actor.get_name()=="ground":
+                self.scene.remove_actor(actor)
+        render_material = self.renderer.create_material()
+        render_texture = self.renderer.create_texture_from_file(filename=texture_file)
+        render_material.set_diffuse_texture(render_texture)
+        self.scene.add_ground(altitude=-0.44667, render_material=render_material)
 
 
     def get_object_list(self):
@@ -81,7 +104,15 @@ class SimplePickPlaceScene(TaskScene):
         forward = camera_pose_target - camera_pose_origin
         forward = forward / np.linalg.norm(forward)
         left = np.cross([0, 0, 1], forward)
-        left = left / np.linalg.norm(left)
+        # In case the forward direction is parallel with the z axes.
+        if np.linalg.norm(left)==0:
+            # chose default left direction
+            if np.array_equal(forward, np.array([0,0,-1])):
+                left=np.array([0,1,0])
+            elif np.array_equal(forward, np.array([0,0,1])):
+                left=np.array([0,-1,0])
+        else:
+            left = left / np.linalg.norm(left)
         up = np.cross(forward, left)
         mat44 = np.eye(4)
         mat44[:3, :3] = np.stack([forward, left, up], axis=1)
@@ -89,18 +120,42 @@ class SimplePickPlaceScene(TaskScene):
         camera.set_pose(sapien.Pose.from_transformation_matrix(mat44))
 
         return camera
+    
+    def _mount_camera(
+            self,
+            camera_mount_actor: Actor,
+            wrt_pose: Pose = Pose(),
+            name = "_camera",
+            near:float = 0.05,
+            far:float = 100,
+            width:int = 640, 
+            height:int = 480,
+            fovy:np.ndarray = np.deg2rad(57.3),
+        )->CameraEntity:
+        camera = self.scene.add_camera(
+            name=name,
+            width=width,
+            height=height,
+            fovy=fovy,
+            near=near,
+            far=far,
+        )
+        camera.set_pose(wrt_pose)
+        camera.set_parent(parent=camera_mount_actor, keep_pose=False)
+
+        return camera
 
 
     def _create_tabletop(self) -> None:
         # table top
-        self.table=create_table(
-            task_scene=self,
-            pose=sapien.Pose([0.57, 0, 0]),
-            size=[1., 1.4],
-            height=1,
-            thickness=0.1,
-            name="table",
-            )
+        loader: sapien.URDFLoader = self.scene.create_urdf_loader()
+        table: sapien.Articulation = loader.load(
+            os.path.join(manipulate_root_path, "assets/object/partnet-mobility/20985/mobility.urdf")
+        )
+        # table.set_root_pose(sapien.Pose(p=[0.46,0,-0.087578], q=euler.euler2quat(0,0,np.pi)))
+        table.set_root_pose(sapien.Pose(p=[0.46,0,-0.0886], q=euler.euler2quat(0,0,np.pi)))
+        table.set_name("table")
+        self.object_list.append(table)
 
         # pads
         self.red_pad=create_box(
@@ -130,7 +185,7 @@ class SimplePickPlaceScene(TaskScene):
         #objects
         self.box = create_box(
             self,
-            sapien.Pose(p=[0.46, -0.1, 0.06]),
+            sapien.Pose(p=[0.46, -0.2, 0.06]),
             half_size=[0.05, 0.02, 0.06],
             color=[1., 0., 0.],
             name='box',
@@ -164,8 +219,23 @@ class SimplePickPlaceScene(TaskScene):
 
 
     def _create_robot(self) -> None:
-        # Robot
-        # Load URDF
+        camera = self.scene.add_camera(
+            name="first_person_camera",
+            width=640,
+            height=480,
+            fovy=np.deg2rad(57.3),
+            near=0.001,
+            far=100,
+        )
+        mounted_camera_info={
+            "camera_entity_link_name":"camera_entity",
+            "camera_entity_joint_name":"camera_entity_joint",
+            "camera_entity_half_size":[0.015, 0.045, 0.015],
+            "camera_entity_pose":sapien.Pose(p=[0.04, 0, 0.055], q=euler.euler2quat(0,np.deg2rad(-70),np.pi)),
+            "camera_entity_color":[60, 64, 67],
+            "camera":camera,
+            "camera_local_pose":sapien.Pose(p=[0.04, 0, 0.055], q=euler.euler2quat(0,np.deg2rad(-70),np.pi))
+        }
         self.panda_robot=load_robot(
             task_scene=self,
             pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
@@ -173,8 +243,9 @@ class SimplePickPlaceScene(TaskScene):
             urdf_file_path=manipulate_root_path+"assets/robot/panda/panda.urdf",
             srdf_file_path=manipulate_root_path+"assets/robot/panda/panda.srdf",
             move_group="panda_hand",
-            active_joints_num_wo_MG=7,
+            active_joints_num_wo_EE=7,
             name="panda_robot",
+            mounted_camera_info=mounted_camera_info,
         )
 
 
@@ -221,63 +292,74 @@ class SimplePickPlaceScene(TaskScene):
             self, 
             render_step: int = 1, 
             n_render_step: int = 1,
-            backward_record :bool = True,
+            backward_record :bool = False,
             downward_record :bool = False,
+            rightward_record :bool = False,
+            leftward_record :bool = False,
             first_person_record :bool = False,
     ):
-        n_render_step = 1
+        n_render_step = 4
         self.scene.step()
 
-        # When the scene is rendered for the 1st time, the axis frame will be displayed
-        # So we do the following check to avoid the axis frame being recorded.
-        if self.step_index==0:
-            self.viewer.render()
+        def _get_RGB(camera: CameraEntity, viewpoint: str):
+            assert viewpoint in ["Backward", "Downward", "Rightward", "Leftward", "FirstPerson"], \
+                "The viewpoint should be \"Backward\", \"Downward\", \"Rightward\", \"Leftward\" or \"FirstPerson\""
+            camera.take_picture()
+            rgba = camera.get_float_texture("Color")
+            rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
+            rgba_pil = Image.fromarray(rgba_img)
+            save_dir = os.path.join(self.subtask_dir, viewpoint, "RGB")
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            save_file = str(self.step_index).zfill(5)+".png"
+            rgba_pil.save(os.path.join(save_dir, save_file))
+        def _get_Depth(camera: CameraEntity, viewpoint: str):
+            assert viewpoint in ["Backward", "Downward", "Rightward", "Leftward", "FirstPerson"], \
+                "The viewpoint should be \"Backward\", \"Downward\", \"Rightward\", \"Leftward\" or \"FirstPerson\""
+            camera.take_picture()
+            position = camera.get_float_texture('Position')
+            depth = -position[..., 2]
+            depth_img = (depth * 1000.0).astype(np.uint16)
+            depth_pil = Image.fromarray(depth_img)
+            save_dir = os.path.join(self.subtask_dir, viewpoint, "Depth")
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            save_file = str(self.step_index).zfill(5)+".png"
+            depth_pil.save(os.path.join(save_dir, save_file))
 
         if render_step % n_render_step == 0:
             self.scene.update_render()
             self.viewer.render()
 
             if backward_record:
-                self.backward_camera.take_picture()
-
-                rgba = self.backward_camera.get_float_texture("Color")
-                rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
-                rgba_pil = Image.fromarray(rgba_img)
-                rgba_pil.save(os.path.join(self.subtask_dir, "Backward", "RGB", str(self.step_index).zfill(5)+".png"))
-
-                position = self.backward_camera.get_float_texture('Position')
-                depth = -position[..., 2]
-                depth_img = (depth * 1000.0).astype(np.uint16)
-                depth_pil = Image.fromarray(depth_img)
-                depth_pil.save(os.path.join(self.subtask_dir, "Backward", "Depth", str(self.step_index).zfill(5)+".png")) 
-
-                # seg_labels = self.backward_camera.get_uint32_texture('Segmentation')
-                # colormap = sorted(set(ImageColor.colormap.values()))
-                # color_palette = np.array([ImageColor.getrgb(color) for color in colormap],
-                #                         dtype=np.uint8)
-                # label0_image = seg_labels[..., 0].astype(np.uint8)  # mesh-level
-                # label1_image = seg_labels[..., 1].astype(np.uint8)  # actor-level
-                # # Or you can use aliases below
-                # # label0_image = camera.get_visual_segmentation()
-                # # label1_image = camera.get_actor_segmentation()
-                # label0_pil = Image.fromarray(color_palette[label0_image])
-                # label0_pil.save('label0.png')
-                # label1_pil = Image.fromarray(color_palette[label1_image])
-                # label1_pil.save('label1.png')
+                _get_RGB(self.backward_camera, "Backward")
+                _get_Depth(self.backward_camera, "Backward")
             if downward_record:
-                pass
+                _get_RGB(self.downward_camera, "Downward")
+                _get_Depth(self.downward_camera, "Downward")
+            if rightward_record:
+                _get_RGB(self.rightward_camera, "Rightward")
+                _get_Depth(self.rightward_camera, "Rightward")
+            if leftward_record:
+                _get_RGB(self.leftward_camera, "Leftward")
+                _get_Depth(self.leftward_camera, "Leftward")                
             if first_person_record:
-                pass
+                for camera in self.scene.get_cameras():
+                    if camera.get_name()=='first_person_camera':
+                        first_person_camera=camera
+                _get_RGB(first_person_camera, "FirstPerson")
+                _get_Depth(first_person_camera, "FirstPerson") 
 
         self.step_index+=1
 
 
 if __name__ == '__main__':
     demo=SimplePickPlaceScene()
+    # demo.demo()
     demo.scene.step() 
     demo.scene.update_render()
 
     demo.set_subtask_dir(os.path.join(dataset_path, "task_0001/subtask_001"))
     demo.set_step_index(0)
-    demo.primitives.Push("box",[0,-1],0.1)
+    demo.primitives.Push("box", [0,-1], 0.1)
     demo.set_step_index(0)

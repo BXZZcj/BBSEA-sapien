@@ -1,10 +1,10 @@
-from sapien.core import Articulation, Actor
+from sapien.core import Articulation, Actor, Link
 from sapien.core import RenderBody
 import sapien.core as sapien
 import numpy as np
 
 from perception.core import get_pcd_from_articulation, get_pcd_normals_from_obj, get_pcd_from_actor
-from scene.core import SpecifiedObject
+from scene.core import SpecifiedObject, TaskScene
 
 
 class StorageFurniture(SpecifiedObject):
@@ -72,11 +72,11 @@ class StorageFurniture(SpecifiedObject):
         return drawer_name_list
             
     
-    def get_pcd(self)->np.ndarray: 
-        return get_pcd_from_articulation(self.storage_furniture_body)
+    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray: 
+        return get_pcd_from_articulation(self.storage_furniture_body, dense_sample_convex)
     
-    def get_pcd_normals(self)->np.ndarray:
-        return get_pcd_normals_from_obj(self.storage_furniture_body)
+    def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
+        return get_pcd_normals_from_obj(self.storage_furniture_body, dense_sample_convex)
 
 
     def get_handle_pcd_by_name(self, handle_name: str)->np.ndarray:
@@ -162,8 +162,8 @@ class Drawer(SpecifiedObject):
     def get_pose(self)->sapien.Pose:
         return self.drawer.get_pose()
 
-    def get_pcd(self)->np.ndarray:   
-        drawer_pcd = get_pcd_from_actor(self.drawer)
+    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray:   
+        drawer_pcd = get_pcd_from_actor(self.drawer, dense_sample_convex)
 
         # We assume that the initial (when the urdf is loaded in) forward direction of the handle is [-1,0,0]
         storage_furniture_tf_mat = self.storage_furniture_body.get_pose().to_transformation_matrix()
@@ -175,7 +175,7 @@ class Drawer(SpecifiedObject):
 
         return drawer_pcd
 
-    def get_pcd_normals(self)->np.ndarray:
+    def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
         pass
 
     def get_handle(self, handle_name:str=None)->RenderBody:
@@ -199,26 +199,46 @@ class Drawer(SpecifiedObject):
     
 
 class Robot(SpecifiedObject):
-    def __init__(self, 
+    def __init__(
+            self,
+            task_scene: TaskScene,
             robot_articulation: Articulation, 
             urdf_file_path:str,
             srdf_file_path:str,
             move_group:str,
-            active_joints_num_wo_MG:int,
+            active_joints_num_wo_EE:int,
+            mounted_obj:list[Link]=[],
             name:str=None
         ):
         super().__init__()
 
+        self.task_scene=task_scene
+        # The robot_articulation may be different from the robot articulation loaded from the urdf file
+        # Because the robot articulation may have been mounted with some camera entities, 
+        # the camera entities are "links", but the robot articulation loaded from the urdf file doesn't contain them
         self.robot_articulation=robot_articulation
         self.urdf_file_path=urdf_file_path
         self.srdf_file_path=srdf_file_path
         self.move_group=move_group
-        self.active_joints_num_wo_MG=active_joints_num_wo_MG
-        self.joint_vel_limits=np.ones(active_joints_num_wo_MG)
-        self.joint_acc_limits=np.ones(active_joints_num_wo_MG)
+        self.active_joints_num_wo_MG=active_joints_num_wo_EE
+        self.joint_vel_limits=np.ones(active_joints_num_wo_EE)
+        self.joint_acc_limits=np.ones(active_joints_num_wo_EE)
+        self.mounted_obj=mounted_obj
+
+        self.origin_link_names, self.origin_joint_names = self._get_origin_link_joint()
         
         if name!=None:
             self.robot.set_name(name)
+
+    def _get_origin_link_joint(self):
+        robot_loader = self.task_scene.scene.create_urdf_loader()
+        origin_robot_articulation = robot_loader.load(self.urdf_file_path)
+        robot_loader.fix_root_link=True
+        origin_link_names = [link.get_name() for link in origin_robot_articulation.get_links()]
+        origin_joint_names = [joint.get_name() for joint in origin_robot_articulation.get_active_joints()]
+        self.task_scene.scene.remove_articulation(origin_robot_articulation)
+        return origin_link_names, origin_joint_names
+
 
     def set_joint_vel_limits(self, joint_vel_limits:np.ndarray):
         assert len(joint_vel_limits)==self.active_joints_num_wo_MG, \
@@ -230,3 +250,7 @@ class Robot(SpecifiedObject):
         assert len(joint_acc_limits)==self.active_joints_num_wo_MG, \
             "The length of joint_acc_limits should be the same as the active joints number except the move group."
         self.joint_acc_limits=joint_acc_limits
+
+    
+    def add_mounted_obj(self, obj:Link):
+        self.mounted_obj.append(obj)

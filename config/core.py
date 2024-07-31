@@ -3,7 +3,7 @@ import torch
 
 manipulate_root_path="/home/jiechu/Data/TinyRobotBench/manipulate/"
 TINYROBOTBENCH_root_path="/home/jiechu/Data/TinyRobotBench/"
-dataset_path="/home/jiechu/Data/TinyRobotBench/manipulate/dataset_test"
+dataset_path="/home/jiechu/Data/TinyRobotBench/dataset_test"
 
 
 device = (

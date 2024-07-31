@@ -1,5 +1,5 @@
 import sapien.core as sapien
-from sapien.core import Scene, ActorBase, Actor, RenderBody, Articulation
+from sapien.core import Scene, ActorBase, Actor, RenderBody, Articulation, Link
 import numpy as np
 from scipy.spatial import ConvexHull
 import trimesh
@@ -66,23 +66,37 @@ def get_object_by_name(
     return None
 
 
-def get_pcd_from_obj(obj: Union[Actor,Articulation,SpecifiedObject])->np.ndarray:
+def get_pcd_from_obj(
+        obj: Union[Actor,Articulation,SpecifiedObject],
+        dense_sample_convex:bool=False
+)->np.ndarray:
     if type(obj)==Actor:
-        return get_pcd_from_actor(obj)
+        return get_pcd_from_actor(obj, dense_sample_convex)
     elif type(obj)==Articulation:
-        return get_pcd_from_articulation(obj)
+        return get_pcd_from_articulation(obj, dense_sample_convex)
     elif isinstance(obj, SpecifiedObject):
-        return obj.get_pcd()
+        return obj.get_pcd(dense_sample_convex)
     else:
         return None
         
 
-def get_pcd_from_articulation(articulation: Articulation) -> np.ndarray:
+def get_pcd_from_articulation(
+        articulation: Articulation, 
+        dense_sample_convex:bool=False
+) -> np.ndarray:
     pcd=[]
     for link in articulation.get_links():
-        for vis_body in link.get_visual_bodies():
+        for vis_body in link.get_collision_visual_bodies():
             for render_shape in vis_body.get_render_shapes():
                 vertices = render_shape.mesh.vertices
+                if dense_sample_convex:
+                    vertices=_dense_sample_convex_pcd(vertices)
+
+                # import open3d as o3d
+                # pcd_ = o3d.geometry.PointCloud()
+                # pcd_.points = o3d.utility.Vector3dVector(vertices)
+                # o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
+
                 pcd+=vertices.tolist()
     pcd=np.array(pcd)
     # If the articulation.get_links()[1].get_visual_bodies() return [], just change the index 1 to other number
@@ -98,49 +112,47 @@ def get_pcd_from_articulation(articulation: Articulation) -> np.ndarray:
     return pcd
 
 
-def get_pcd_normals_from_articulation(articulation: Articulation) -> np.ndarray:
-    pcd=np.array([]).reshape(0, 3)
-    normals=np.array([]).reshape(0, 3)
-    for link in articulation.get_links():
-        part_pcd, part_normals = get_pcd_normals_from_actor(link)
-        pcd=np.concatenate((pcd, part_pcd), axis=0)
-        normals=np.concatenate((normals, part_normals), axis=0)
-
-    # If the articulation.get_links()[1].get_visual_bodies() return [], just change the index 1 to other number
-    pcd=pcd * articulation.get_links()[1].get_visual_bodies()[0].scale
-
-    tf_mat=articulation.get_links()[1].get_pose().to_transformation_matrix()
-    pcd_homo=np.concatenate((pcd, np.ones((pcd.shape[0],1))), axis=-1)
-    pcd = (tf_mat@pcd_homo.T).T[:,:-1]
-
-    # hull = ConvexHull(pcd)
-    # pcd = pcd[hull.vertices, :]
-    
-    return pcd, normals
-
-
-def get_pcd_from_actor(actor: Actor) -> np.ndarray:
+def get_pcd_from_actor(
+        actor: Union[Actor, Link],
+        dense_sample_convex:bool=False
+) -> np.ndarray:
     pcd=np.array([]).reshape(0,3)
     for vis_body in actor.get_visual_bodies():
-        part_pcd = _get_pcd_from_single_actor(actor, vis_body)
+        part_pcd = _get_pcd_from_single_actor(actor, vis_body, dense_sample_convex)
         pcd=np.concatenate((pcd, part_pcd), axis=0)
     
     return pcd
 
 
-def _get_pcd_from_single_actor(actor: Actor, vis_body: RenderBody) -> np.ndarray:
+def _get_pcd_from_single_actor(
+        actor: Union[Actor, Link], 
+        vis_body: RenderBody,
+        dense_sample_convex:bool=False
+) -> np.ndarray:    
     render_shape = vis_body.get_render_shapes()[0]
     vertices = render_shape.mesh.vertices
+    # You must get the scale of the box, or the radius of the sphere, and in spaien 2.2.0, 
+    # you can only get it from the actor builder. However, you cannot directly get Link (actor)
+    # builder merely through actor.get_builder(). So we need special case handling, just as follows.
+    if type(actor)==Actor:
+        actor_builder = actor.get_builder()
+    elif type(actor)==Link:
+        for builder in actor.get_articulation().get_builder().get_link_builders():
+            if builder.get_name()==actor.get_name():
+                actor_builder=builder
+                break
 
-    vis_body_type = vis_body.type
-    if vis_body_type == "box":
-        vertices = _dense_sample_convex_pcd(vertices * actor.get_builder().get_visuals()[0].scale)
-    elif vis_body_type == "sphere":
-        vertices = vertices * actor.get_builder().get_visuals()[0].radius
-    elif vis_body_type == "capsule":
+    if vis_body.type == "box":
+        vertices = _dense_sample_convex_pcd(vertices * actor_builder.get_visuals()[0].scale)
+    elif vis_body.type == "sphere":
+        vertices = vertices * actor_builder.get_visuals()[0].radius
+    elif vis_body.type == "capsule":
         vertices = vertices
-    elif vis_body_type == "mesh":
+    elif vis_body.type == "mesh":
         vertices = vertices * vis_body.scale
+    
+    if dense_sample_convex:
+        vertices=_dense_sample_convex_pcd(vertices)
 
     tf_mat = actor.get_pose().to_transformation_matrix() @ vis_body.local_pose.to_transformation_matrix()
     vertices_homo = np.concatenate((vertices, np.ones((vertices.shape[0],1))), axis=-1)
@@ -195,18 +207,24 @@ def get_normals_from_actor(actor: Actor, point_cloud: np.ndarray) -> np.ndarray:
     return normals
 
 
-def get_pcd_normals_from_obj(obj: Union[Actor, Articulation, SpecifiedObject])->Tuple[np.ndarray, np.ndarray]:
+def get_pcd_normals_from_obj(
+        obj: Union[Actor, Articulation, SpecifiedObject],
+        dense_sample_convex:bool=False
+)->Tuple[np.ndarray, np.ndarray]:
     if type(obj)==Actor:
-        return get_pcd_normals_from_actor(obj)
+        return get_pcd_normals_from_actor(obj, dense_sample_convex)
     elif type(obj)==Articulation:
-        return get_pcd_normals_from_articulation(obj)
+        return get_pcd_normals_from_articulation(obj, dense_sample_convex)
     elif isinstance(obj, SpecifiedObject):
-        return obj.get_pcd_normals()
+        return obj.get_pcd_normals(dense_sample_convex)
     else:
         return None
 
 
-def get_pcd_normals_from_actor(actor: Actor) -> Tuple[np.ndarray, np.ndarray]:
+def get_pcd_normals_from_actor(
+        actor: Actor,
+        dense_sample_convex:bool=False
+) -> Tuple[np.ndarray, np.ndarray]:
     # You can directly get normals from actors which are loaded from mesh files
     if actor.get_builder().get_visuals()[0].type == "File":
         return get_pcd_from_actor(actor), actor.get_visual_bodies()[0].get_render_shapes()[0].mesh.normals
@@ -214,11 +232,35 @@ def get_pcd_normals_from_actor(actor: Actor) -> Tuple[np.ndarray, np.ndarray]:
     pcd = np.array([]).reshape(0, 3)
     normals = np.array([]).reshape(0, 3)
     for vis_body in actor.get_visual_bodies():
-        part_pcd = _get_pcd_from_single_actor(actor, vis_body)
+        part_pcd = _get_pcd_from_single_actor(actor, vis_body, dense_sample_convex)
         part_normals = _get_normals_from_single_actor(part_pcd)
         pcd = np.concatenate((pcd, part_pcd), axis=0)
         normals = np.concatenate((normals, part_normals), axis=0)
 
+    return pcd, normals
+
+
+def get_pcd_normals_from_articulation(
+        articulation: Articulation,
+        dense_sample_convex:bool=False        
+) -> np.ndarray:
+    pcd=np.array([]).reshape(0, 3)
+    normals=np.array([]).reshape(0, 3)
+    for link in articulation.get_links():
+        part_pcd, part_normals = get_pcd_normals_from_actor(link, dense_sample_convex)
+        pcd=np.concatenate((pcd, part_pcd), axis=0)
+        normals=np.concatenate((normals, part_normals), axis=0)
+
+    # If the articulation.get_links()[1].get_visual_bodies() return [], just change the index 1 to other number
+    pcd=pcd * articulation.get_links()[1].get_visual_bodies()[0].scale
+
+    tf_mat=articulation.get_links()[1].get_pose().to_transformation_matrix()
+    pcd_homo=np.concatenate((pcd, np.ones((pcd.shape[0],1))), axis=-1)
+    pcd = (tf_mat@pcd_homo.T).T[:,:-1]
+
+    # hull = ConvexHull(pcd)
+    # pcd = pcd[hull.vertices, :]
+    
     return pcd, normals
 
 

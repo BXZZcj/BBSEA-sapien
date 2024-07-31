@@ -158,10 +158,10 @@ class SimplePickPlaceScene(TaskScene):
             task_scene=self,
             pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
             init_qpos=[0, 0.19634954084936207, 0.0, -2.617993877991494, 0.0, 2.941592653589793, 0.7853981633974483, 0, 0],
-            urdf_file_path=os.path.join(manipulate_root_path,"assets/robot/panda/panda.urdf"),
-            srdf_file_path=os.path.join(manipulate_root_path,"assets/robot/panda/panda.srdf"),
+            urdf_file_path=manipulate_root_path+"assets/robot/panda/panda.urdf",
+            srdf_file_path=manipulate_root_path+"assets/robot/panda/panda.srdf",
             move_group="panda_hand",
-            active_joints_num_wo_MG=7,
+            active_joints_num_wo_EE=7,
             name="panda_robot",
         )
 
@@ -203,4 +203,5 @@ class SimplePickPlaceScene(TaskScene):
 if __name__ == '__main__':
     demo = SimplePickPlaceScene()
     demo.demo(step=False)
+    # demo.table.get_visual_bodies()[0].get_render_shapes(
     print(demo.get_scene_graph())

@@ -63,12 +63,14 @@ def create_sphere(
         name='',
 ) -> sapien.Actor:
     """Create a sphere. See create_box."""
-    scene = task_scene.scene
-    builder = scene.create_actor_builder()
+    builder = task_scene.scene.create_actor_builder()
     builder.add_sphere_collision(radius=radius)
     builder.add_sphere_visual(radius=radius, color=color)
     sphere = builder.build(name=name)
     sphere.set_pose(pose)
+    # NOTE: Since Sapien does not model rolling resistance (friction), the sphere will roll forever.
+    # However, you can set actor's damping, like air resistance.
+    sphere.set_damping(linear=20, angular=20)
 
     task_scene.object_list.append(sphere)
 
@@ -84,12 +86,14 @@ def create_capsule(
         name='',
 ) -> sapien.Actor:
     """Create a capsule (x-axis <-> half_length). See create_box."""
-    scene = task_scene.scene
-    builder = scene.create_actor_builder()
+    builder = task_scene.scene.create_actor_builder()
     builder.add_capsule_collision(radius=radius, half_length=half_length)
     builder.add_capsule_visual(radius=radius, half_length=half_length, color=color)
     capsule = builder.build(name=name)
     capsule.set_pose(pose)
+    # NOTE: Since Sapien does not model rolling resistance (friction), the sphere will roll forever.
+    # However, you can set actor's damping, like air resistance.
+    capsule.set_damping(linear=20, angular=20)
 
     task_scene.object_list.append(capsule)
 

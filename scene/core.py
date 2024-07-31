@@ -14,10 +14,10 @@ class SpecifiedObject:
     def get_pose(self)->sapien.Pose:
         pass
 
-    def get_pcd(self)->np.ndarray:
+    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray:
         pass
 
-    def get_pcd_normals(self)->np.ndarray:
+    def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
         pass
 
 
@@ -30,7 +30,8 @@ class TaskScene():
         self.scene = self.engine.create_scene(sapien.SceneConfig())
         self.time_step = 1 / 100.0
         self.scene.set_timestep(self.time_step)
-        self.scene.add_ground(-1)
+        self.ground_altitude = -1
+        self.scene.add_ground(self.ground_altitude)
         self.scene.default_physical_material = self.scene.create_physical_material(static_friction=1, dynamic_friction=1, restitution=0.0)
         self.scene.set_ambient_light(color=[0.5, 0.5, 0.5])
         self.scene.add_directional_light(direction=[0, 1, -1], color=[0.5, 0.5, 0.5], shadow=True)
