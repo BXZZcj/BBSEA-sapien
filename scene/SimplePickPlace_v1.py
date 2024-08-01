@@ -15,7 +15,7 @@ from utils import create_box, \
     load_robot
 from action import PandaPrimitives
 from config import manipulate_root_path, dataset_path
-from perception import get_pcd_from_actor
+from perception import get_pcd_from_actor, get_pcd_from_obj
 from perception.scene_graph import SceneGraph, Node
 from scene.core import TaskScene
 from scene.specified_object import StorageFurniture
@@ -27,7 +27,7 @@ class SimplePickPlaceScene(TaskScene):
         super().__init__()
         
         self._set_ground(
-            altitude=-0.45667,
+            altitude=-0.44867,
             texture_file=os.path.join(manipulate_root_path, "assets/ground_texture_1.jpg"),
         )
         # self._set_ground_texture(texture_file=os.path.join(manipulate_root_path, "assets/ground_texture_1.jpg"))
@@ -57,7 +57,7 @@ class SimplePickPlaceScene(TaskScene):
         )
 
         self.viewer.toggle_axes(show=False)
-        # self.viewer.toggle_camera_lines(show=False)
+        self.viewer.toggle_camera_lines(show=False)
 
         self.primitives = PandaPrimitives(
             self,
@@ -71,7 +71,7 @@ class SimplePickPlaceScene(TaskScene):
             task_scene=self,
             urdf_file_path=os.path.join(manipulate_root_path, "assets/object/partnet-mobility/20985/mobility.urdf"),
             # pose=sapien.Pose(p=[0.46,0,-0.087578], q=euler.euler2quat(0,0,np.pi)),
-            pose=sapien.Pose(p=[0.46,0,-0.097578], q=euler.euler2quat(0,0,np.pi)),
+            pose=sapien.Pose(p=[0.46,0,-0.089578], q=euler.euler2quat(0,0,np.pi)),
             name="table",
         )     
 
@@ -137,14 +137,6 @@ class SimplePickPlaceScene(TaskScene):
 
 
     def _create_robot(self) -> None:
-        # camera = self.scene.add_camera(
-        #     name="first_person_camera",
-        #     width=640,
-        #     height=480,
-        #     fovy=np.deg2rad(57.3),
-        #     near=0.001,
-        #     far=100,
-        # )
         self.first_person_camera = self._set_camera(
             name="first_person_camera",
         )
@@ -200,6 +192,7 @@ class SimplePickPlaceScene(TaskScene):
         while not self.viewer.closed:
             if step:
                 self.scene.step()
+            print(self.get_object_by_name("cracker_box").get_pose())
             self.scene.update_render()
             self.viewer.render()
 
@@ -273,7 +266,7 @@ class SimplePickPlaceScene(TaskScene):
 
 if __name__ == '__main__':
     demo=SimplePickPlaceScene()
-    # demo.demo()
+    demo.demo(step=True)
     demo.scene.step() 
     demo.scene.update_render()
 

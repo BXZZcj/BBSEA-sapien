@@ -4,7 +4,7 @@ import numpy as np
 from transforms3d.euler import euler2quat
 import transforms3d.quaternions as quat 
 
-from scene.SimplePickPlace import SimplePickPlaceScene
+from manipulate.scene.SimplePickPlace_v0 import SimplePickPlaceScene
 
 demo=SimplePickPlaceScene()
 demo.scene.step() 
