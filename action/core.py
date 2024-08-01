@@ -28,7 +28,8 @@ class Move_Tool():
             collision_avoid_attach_obj="",
             collision_avoid_obj="",
             collision_avoid_all=False,
-            collision_avoid_all_except=[]
+            collision_avoid_all_except=[],
+            speed_factor:int=1,
     ) -> mplib.Planner:
         planner = mplib.Planner(
             urdf=self.robot.urdf_file_path,
@@ -36,8 +37,8 @@ class Move_Tool():
             user_link_names=self.robot.origin_link_names,
             user_joint_names=self.robot.origin_joint_names,
             move_group=self.robot.move_group,
-            joint_vel_limits=self.robot.joint_vel_limits,
-            joint_acc_limits=self.robot.joint_acc_limits
+            joint_vel_limits=self.robot.joint_vel_limits*speed_factor,
+            joint_acc_limits=self.robot.joint_acc_limits*speed_factor,
         )
 
         def _updare_planner_attach_actor(
@@ -78,13 +79,13 @@ class Move_Tool():
             for obj in self.task_scene.object_list:
                 if obj.get_name() not in collision_avoid_all_except:
                     pcd = get_pcd_from_obj(obj, dense_sample_convex=True)
-
-                    # import open3d as o3d
-                    # pcd_ = o3d.geometry.PointCloud()
-                    # pcd_.points = o3d.utility.Vector3dVector(pcd)
-                    # o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
-
                     combined_pcd = np.concatenate((combined_pcd, pcd), axis=0)
+            
+            # import open3d as o3d
+            # pcd_ = o3d.geometry.PointCloud()
+            # pcd_.points = o3d.utility.Vector3dVector(combined_pcd)
+            # o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
+
             planner.update_point_cloud(combined_pcd)
         if collision_avoid_obj:
             pcd = get_pcd_from_obj(self.task_scene.get_object_by_name(collision_avoid_obj), dense_sample_convex=True)
@@ -124,6 +125,7 @@ class Move_Tool():
             collision_avoid_all=False,
             collision_avoid_all_except=[],
             guarantee_screw_mp=False,
+            speed_factor=1,
             n_render_step=4,
     ) -> int:
         
@@ -150,6 +152,7 @@ class Move_Tool():
             collision_avoid_obj,
             collision_avoid_all,
             collision_avoid_all_except,
+            speed_factor,
             )
         
         pose_list = list(pose.p)+list(pose.q)

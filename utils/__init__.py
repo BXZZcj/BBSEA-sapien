@@ -1,3 +1,3 @@
 from .create_robot import *
-from .create_actor import *
+from .create_obj import *
 from .robot import *

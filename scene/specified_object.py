@@ -1,11 +1,11 @@
+import sapien.core as sapien
 from sapien.core import Articulation, Actor, Link
 from sapien.core import RenderBody
-import sapien.core as sapien
 import numpy as np
+from typing import Union
 
 from perception.core import get_pcd_from_articulation, get_pcd_normals_from_obj, get_pcd_from_actor
 from scene.core import SpecifiedObject, TaskScene
-
 
 class StorageFurniture(SpecifiedObject):
     def __init__(self, storage_furniture_body: Articulation, name:str=None):
@@ -221,14 +221,17 @@ class Robot(SpecifiedObject):
         self.srdf_file_path=srdf_file_path
         self.move_group=move_group
         self.active_joints_num_wo_MG=active_joints_num_wo_EE
-        self.joint_vel_limits=np.ones(active_joints_num_wo_EE)
-        self.joint_acc_limits=np.ones(active_joints_num_wo_EE)
+        self.joint_vel_limits=np.ones(active_joints_num_wo_EE)#*0.2
+        self.joint_acc_limits=np.ones(active_joints_num_wo_EE)#*0.2
         self.mounted_obj=mounted_obj
 
         self.origin_link_names, self.origin_joint_names = self._get_origin_link_joint()
         
         if name!=None:
-            self.robot.set_name(name)
+            self.robot_articulation.set_name(name)
+        
+    def get_name(self):
+        return self.robot_articulation.get_name()
 
     def _get_origin_link_joint(self):
         robot_loader = self.task_scene.scene.create_urdf_loader()
@@ -254,3 +257,7 @@ class Robot(SpecifiedObject):
     
     def add_mounted_obj(self, obj:Link):
         self.mounted_obj.append(obj)
+
+
+    def get_mounted_obj(self):
+        return self.mounted_obj

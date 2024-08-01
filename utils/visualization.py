@@ -32,6 +32,6 @@ def create_video_from_RGB(
     print(f"Video saved as {output_video_file}")
 
 # Example usage
-image_folder = os.path.join(dataset_path, "task_0001/subtask_001/Backward")
+image_folder = os.path.join(dataset_path, "task_0001/subtask_001/FirstPerson")
 output_video_file = 'output_video.avi'
 create_video_from_RGB(image_folder, output_video_file, fps=100)

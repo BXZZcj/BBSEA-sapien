@@ -20,7 +20,7 @@ from perception import get_pcd_from_actor
 from perception.scene_graph import SceneGraph, Node
 from scene.core import TaskScene
 from scene.specified_object import StorageFurniture
-from utils import load_partnet_mobility
+from utils import load_articulation
 
 
 class SimplePickPlaceScene(TaskScene):
@@ -58,7 +58,7 @@ class SimplePickPlaceScene(TaskScene):
 
         self.primitives = PandaPrimitives(
             self,
-            robot=self.panda_robot,
+            robot=self.get_robot_by_name("panda_robot"),
         )
 
 
@@ -69,7 +69,7 @@ class SimplePickPlaceScene(TaskScene):
         render_material = self.renderer.create_material()
         render_texture = self.renderer.create_texture_from_file(filename=texture_file)
         render_material.set_diffuse_texture(render_texture)
-        self.scene.add_ground(altitude=-0.44667, render_material=render_material)
+        self.scene.add_ground(altitude=-0.45667, render_material=render_material)
 
 
     def get_object_list(self):
@@ -148,17 +148,16 @@ class SimplePickPlaceScene(TaskScene):
 
     def _create_tabletop(self) -> None:
         # table top
-        loader: sapien.URDFLoader = self.scene.create_urdf_loader()
-        table: sapien.Articulation = loader.load(
-            os.path.join(manipulate_root_path, "assets/object/partnet-mobility/20985/mobility.urdf")
-        )
-        # table.set_root_pose(sapien.Pose(p=[0.46,0,-0.087578], q=euler.euler2quat(0,0,np.pi)))
-        table.set_root_pose(sapien.Pose(p=[0.46,0,-0.0886], q=euler.euler2quat(0,0,np.pi)))
-        table.set_name("table")
-        self.object_list.append(table)
+        load_articulation(
+            task_scene=self,
+            urdf_file_path=os.path.join(manipulate_root_path, "assets/object/partnet-mobility/20985/mobility.urdf"),
+            # pose=sapien.Pose(p=[0.46,0,-0.087578], q=euler.euler2quat(0,0,np.pi)),
+            pose=sapien.Pose(p=[0.46,0,-0.097578], q=euler.euler2quat(0,0,np.pi)),
+            name="table",
+        )     
 
         # pads
-        self.red_pad=create_box(
+        create_box(
             task_scene=self,
             pose=sapien.Pose([0.2, 0.58, 0.005]),
             half_size=[0.1, 0.1, 0.005],
@@ -166,7 +165,7 @@ class SimplePickPlaceScene(TaskScene):
             name='red_pad',
         )
 
-        self.green_pad=create_box(
+        create_box(
             task_scene=self,
             pose=sapien.Pose([0.44, 0.58, 0.005]),
             half_size=[0.1, 0.1, 0.005],
@@ -174,7 +173,7 @@ class SimplePickPlaceScene(TaskScene):
             name='green_pad',
         )
 
-        self.blue_pad=create_box(
+        create_box(
             task_scene=self,
             pose=sapien.Pose([0.2, 0.35, 0.005]),
             half_size=[0.1, 0.1, 0.005],
@@ -183,7 +182,7 @@ class SimplePickPlaceScene(TaskScene):
         )
 
         #objects
-        self.box = create_box(
+        create_box(
             self,
             sapien.Pose(p=[0.46, -0.2, 0.06]),
             half_size=[0.05, 0.02, 0.06],
@@ -191,7 +190,7 @@ class SimplePickPlaceScene(TaskScene):
             name='box',
         )
 
-        self.sphere = create_sphere(
+        create_sphere(
             self,
             sapien.Pose(p=[0.66, 0.2, 0.02]),
             radius=0.02,
@@ -199,7 +198,7 @@ class SimplePickPlaceScene(TaskScene):
             name='sphere',
         )
 
-        self.capsule = create_capsule(
+        create_capsule(
             self,
             sapien.Pose(p=[0.3+0.2, 0.2, 0.02]),
             radius=0.02,
@@ -208,7 +207,7 @@ class SimplePickPlaceScene(TaskScene):
             name='capsule',
         )
 
-        self.banana = load_object_mesh(
+        load_object_mesh(
             self, 
             self.renderer,
             sapien.Pose(p=[0.2+0.46, 0, 0.01865]), 
@@ -232,11 +231,11 @@ class SimplePickPlaceScene(TaskScene):
             "camera_entity_joint_name":"camera_entity_joint",
             "camera_entity_half_size":[0.015, 0.045, 0.015],
             "camera_entity_pose":sapien.Pose(p=[0.04, 0, 0.055], q=euler.euler2quat(0,np.deg2rad(-70),np.pi)),
-            "camera_entity_color":[60, 64, 67],
+            "camera_entity_color":[201/255, 204/255, 207/255],
             "camera":camera,
             "camera_local_pose":sapien.Pose(p=[0.04, 0, 0.055], q=euler.euler2quat(0,np.deg2rad(-70),np.pi))
         }
-        self.panda_robot=load_robot(
+        load_robot(
             task_scene=self,
             pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
             init_qpos=[0, 0.19634954084936207, 0.0, -2.617993877991494, 0.0, 2.941592653589793, 0.7853981633974483, 0, 0],
@@ -292,13 +291,13 @@ class SimplePickPlaceScene(TaskScene):
             self, 
             render_step: int = 1, 
             n_render_step: int = 1,
-            backward_record :bool = False,
+            backward_record :bool = True,
             downward_record :bool = False,
             rightward_record :bool = False,
             leftward_record :bool = False,
             first_person_record :bool = False,
     ):
-        n_render_step = 4
+        n_render_step = 1
         self.scene.step()
 
         def _get_RGB(camera: CameraEntity, viewpoint: str):
@@ -344,6 +343,7 @@ class SimplePickPlaceScene(TaskScene):
                 _get_RGB(self.leftward_camera, "Leftward")
                 _get_Depth(self.leftward_camera, "Leftward")                
             if first_person_record:
+                # for camera_entity in self.get_robot_by_name("panda_robot"):
                 for camera in self.scene.get_cameras():
                     if camera.get_name()=='first_person_camera':
                         first_person_camera=camera

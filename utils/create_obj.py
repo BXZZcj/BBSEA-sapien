@@ -169,22 +169,22 @@ def load_object_mesh(
     return mesh
 
 
-def load_partnet_mobility(
+def load_articulation(
         task_scene: TaskScene,
         urdf_file_path: str,
         scale=1,
         pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
         name='',
 ) -> sapien.Articulation:
-    scene = task_scene.scene
-
-    loader = scene.create_urdf_loader()
+    loader = task_scene.scene.create_urdf_loader()
     loader.scale = scale
     loader.fix_root_link=False
 
     model = loader.load(urdf_file_path)
     model.set_pose(pose=pose)
     model.set_name(name=name)
+
+    task_scene.object_list.append(model)
 
     return model
 

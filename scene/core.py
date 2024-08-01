@@ -1,7 +1,10 @@
 import sapien.core as sapien
 from sapien.utils import Viewer
 import numpy as np
-from typing import Union
+from typing import Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scene.specified_object import Robot
 
 
 class SpecifiedObject:
@@ -68,9 +71,9 @@ class TaskScene():
         return self.robot_list
     
 
-    def get_robot_by_name(self, name)->sapien.Articulation:
+    def get_robot_by_name(self, name) -> 'Robot':
         for robot in self.robot_list:
-            if robot.get_name()==name:
+            if robot.get_name() == name:
                 return robot
         return None
 
