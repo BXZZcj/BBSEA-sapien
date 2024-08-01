@@ -81,7 +81,9 @@ class PandaPrimitives:
             target=0.4
     ) -> None:
         # This disturbation aims to make the gripper open process more stable.
-        disturbation=self.robot.robot_articulation.get_links()[-3].get_pose()
+        for link in self.robot.robot_articulation.get_links():
+            if link.get_name()==self.robot.move_group:
+                disturbation=link.get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False) 
         
@@ -112,7 +114,9 @@ class PandaPrimitives:
 
     def _close_gripper(self) -> None:
         # This disturbation aims to make the gripper close process more stable.
-        disturbation=self.robot.robot_articulation.get_links()[-3].get_pose()
+        for link in self.robot.robot_articulation.get_links():
+            if link.get_name()==self.robot.move_group:
+                disturbation=link.get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
@@ -212,7 +216,7 @@ class PandaPrimitives:
         self._close_gripper()
 
         for push_pose in push_pose_path[1:]:
-            if self._move_to_pose(push_pose, guarantee_screw_mp=True, speed_factor=1)==-1:
+            if self._move_to_pose(push_pose, guarantee_screw_mp=True, speed_factor=0.1)==-1:
                 print("Inverse Kinematics Computation Fails.")
                 return -1
         

@@ -11,7 +11,6 @@ import open3d as o3d
 from utils import create_box, \
     create_capsule, \
     create_sphere, \
-    create_table, \
     load_object_mesh, \
     load_robot
 from action import PandaPrimitives
@@ -27,7 +26,11 @@ class SimplePickPlaceScene(TaskScene):
     def __init__(self):
         super().__init__()
         
-        self._set_ground_texture(texture_file=os.path.join(manipulate_root_path, "assets/ground_texture_1.jpg"))
+        self._set_ground(
+            altitude=-0.45667,
+            texture_file=os.path.join(manipulate_root_path, "assets/ground_texture_1.jpg"),
+        )
+        # self._set_ground_texture(texture_file=os.path.join(manipulate_root_path, "assets/ground_texture_1.jpg"))
 
         self.subtask_dir = None
         self.step_index = 0
@@ -54,96 +57,12 @@ class SimplePickPlaceScene(TaskScene):
         )
 
         self.viewer.toggle_axes(show=False)
-        self.viewer.toggle_camera_lines(show=False)
+        # self.viewer.toggle_camera_lines(show=False)
 
         self.primitives = PandaPrimitives(
             self,
             robot=self.get_robot_by_name("panda_robot"),
         )
-
-
-    def _set_ground_texture(self, texture_file:str):
-        for actor in self.scene.get_all_actors():
-            if actor.get_name()=="ground":
-                self.scene.remove_actor(actor)
-        render_material = self.renderer.create_material()
-        render_texture = self.renderer.create_texture_from_file(filename=texture_file)
-        render_material.set_diffuse_texture(render_texture)
-        self.scene.add_ground(altitude=-0.45667, render_material=render_material)
-
-
-    def get_object_list(self):
-        return self.object_list
-    
-
-    def get_robot_list(self):
-        return self.robot_list
-
-    
-    def _set_camera(
-            self,
-            name = "_camera",
-            near:float = 0.05,
-            far:float = 100,
-            width:int = 640, 
-            height:int = 480,
-            fovy:np.ndarray = np.deg2rad(57.3),
-            camera_pose_origin:np.ndarray = np.array([1.66, 0, 0.8]),
-            camera_pose_target:np.ndarray = np.array([0, 0, 0]),
-        )->CameraEntity:
-        camera = self.scene.add_camera(
-            name=name,
-            width=width,
-            height=height,
-            fovy=fovy,
-            near=near,
-            far=far,
-        )
-
-        # Compute the camera pose by specifying forward(x), left(y) and up(z)
-        forward = camera_pose_target - camera_pose_origin
-        forward = forward / np.linalg.norm(forward)
-        left = np.cross([0, 0, 1], forward)
-        # In case the forward direction is parallel with the z axes.
-        if np.linalg.norm(left)==0:
-            # chose default left direction
-            if np.array_equal(forward, np.array([0,0,-1])):
-                left=np.array([0,1,0])
-            elif np.array_equal(forward, np.array([0,0,1])):
-                left=np.array([0,-1,0])
-        else:
-            left = left / np.linalg.norm(left)
-        up = np.cross(forward, left)
-        mat44 = np.eye(4)
-        mat44[:3, :3] = np.stack([forward, left, up], axis=1)
-        mat44[:3, 3] = camera_pose_origin
-        camera.set_pose(sapien.Pose.from_transformation_matrix(mat44))
-
-        return camera
-    
-    def _mount_camera(
-            self,
-            camera_mount_actor: Actor,
-            wrt_pose: Pose = Pose(),
-            name = "_camera",
-            near:float = 0.05,
-            far:float = 100,
-            width:int = 640, 
-            height:int = 480,
-            fovy:np.ndarray = np.deg2rad(57.3),
-        )->CameraEntity:
-        camera = self.scene.add_camera(
-            name=name,
-            width=width,
-            height=height,
-            fovy=fovy,
-            near=near,
-            far=far,
-        )
-        camera.set_pose(wrt_pose)
-        camera.set_parent(parent=camera_mount_actor, keep_pose=False)
-
-        return camera
 
 
     def _create_tabletop(self) -> None:
@@ -218,13 +137,16 @@ class SimplePickPlaceScene(TaskScene):
 
 
     def _create_robot(self) -> None:
-        camera = self.scene.add_camera(
+        # camera = self.scene.add_camera(
+        #     name="first_person_camera",
+        #     width=640,
+        #     height=480,
+        #     fovy=np.deg2rad(57.3),
+        #     near=0.001,
+        #     far=100,
+        # )
+        self.first_person_camera = self._set_camera(
             name="first_person_camera",
-            width=640,
-            height=480,
-            fovy=np.deg2rad(57.3),
-            near=0.001,
-            far=100,
         )
         mounted_camera_info={
             "camera_entity_link_name":"camera_entity",
@@ -232,7 +154,7 @@ class SimplePickPlaceScene(TaskScene):
             "camera_entity_half_size":[0.015, 0.045, 0.015],
             "camera_entity_pose":sapien.Pose(p=[0.04, 0, 0.055], q=euler.euler2quat(0,np.deg2rad(-70),np.pi)),
             "camera_entity_color":[201/255, 204/255, 207/255],
-            "camera":camera,
+            "camera":self.first_person_camera,
             "camera_local_pose":sapien.Pose(p=[0.04, 0, 0.055], q=euler.euler2quat(0,np.deg2rad(-70),np.pi))
         }
         load_robot(
@@ -291,13 +213,13 @@ class SimplePickPlaceScene(TaskScene):
             self, 
             render_step: int = 1, 
             n_render_step: int = 1,
-            backward_record :bool = True,
+            backward_record :bool = False,
             downward_record :bool = False,
             rightward_record :bool = False,
             leftward_record :bool = False,
             first_person_record :bool = False,
     ):
-        n_render_step = 1
+        n_render_step = 4
         self.scene.step()
 
         def _get_RGB(camera: CameraEntity, viewpoint: str):
@@ -343,12 +265,8 @@ class SimplePickPlaceScene(TaskScene):
                 _get_RGB(self.leftward_camera, "Leftward")
                 _get_Depth(self.leftward_camera, "Leftward")                
             if first_person_record:
-                # for camera_entity in self.get_robot_by_name("panda_robot"):
-                for camera in self.scene.get_cameras():
-                    if camera.get_name()=='first_person_camera':
-                        first_person_camera=camera
-                _get_RGB(first_person_camera, "FirstPerson")
-                _get_Depth(first_person_camera, "FirstPerson") 
+                _get_RGB(self.first_person_camera, "FirstPerson")
+                _get_Depth(self.first_person_camera, "FirstPerson") 
 
         self.step_index+=1
 
