@@ -2,9 +2,9 @@ import sapien.core as sapien
 from sapien.core import Articulation, Actor, Link
 from sapien.core import RenderBody
 import numpy as np
-from typing import Union
+from typing import Union, List
 
-from perception.core import get_pcd_from_articulation, get_pcd_normals_from_obj, get_pcd_from_actor
+from perception.core import _dense_sample_convex_pcd, get_pcd_normals_from_obj, get_pcd_from_actor
 from scene.core import SpecifiedObject, TaskScene
 
 class StorageFurniture(SpecifiedObject):
@@ -16,14 +16,14 @@ class StorageFurniture(SpecifiedObject):
             self.storage_furniture_body.set_name(name)
 
         self.handle_num=0
-        self.handle_list=[]
-        self.handle_open_limits=[]        
-        self.drawer_list=[]
+        self.handle_list: List[RenderBody]=[]
+        self.handle_open_limits: List[float]=[]        
+        self.drawer_list: List[Link]=[]
 
         for index, drawer_joint in enumerate(self.storage_furniture_body.get_active_joints()):
             # We assume that in the urdf file, the handle visual body is indexed the last 
             # And we assume only the graspable part of a handle could be called "handle" 
-            handle = drawer_joint.get_child_link().get_visual_bodies()[-1]
+            handle: RenderBody = drawer_joint.get_child_link().get_visual_bodies()[-1]
             handle.set_name(f"{self.storage_furniture_body.get_name()}_handle_{index}")
             self.handle_num+=1
             self.handle_list.append(handle)
@@ -49,23 +49,25 @@ class StorageFurniture(SpecifiedObject):
                 return handle
         return None
             
-    def get_drawer_by_name(self, drawer_name: str)->Actor:
+    def get_drawer_by_name(self, drawer_name: str)->Link:
         for drawer in self.drawer_list:
             if drawer.get_name()==drawer_name:
                 return drawer
         return None
     
-    def get_handle_by_drawer(self, drawer: Actor)->RenderBody:
-        return self.get_handle_by_name(drawer.get_visual_bodies()[-1].get_name())            
+    def get_handle_by_drawer(self, drawer: Link)->RenderBody:
+        # We assume that in the urdf file, the handle visual body is indexed the last 
+        # And we assume only the graspable part of a handle could be called "handle" 
+        return drawer.get_visual_bodies()[-1]            
 
-    def get_handle_name_list(self)->list:
+    def get_handle_name_list(self)->List[str]:
         handle_name_list=[]
         for handle in self.handle_list:
             handle_name_list.append(handle.get_name())
         return handle_name_list
     
 
-    def get_drawer_name_list(self)->list:
+    def get_drawer_name_list(self)->List[str]:
         drawer_name_list=[]
         for drawer in self.drawer_list:
             drawer_name_list.append(drawer.get_name())
@@ -73,13 +75,44 @@ class StorageFurniture(SpecifiedObject):
             
     
     def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray: 
-        return get_pcd_from_articulation(self.storage_furniture_body, dense_sample_convex)
+        # The storage furniture body pcd 
+        storage_furniture_body_pcd=[]
+        for link in self.storage_furniture_body.get_links():
+            # The drawer should be isolatedly considered, because we need to get their open degree, 
+            # and then get their real-time pointcloud, as they can be moving at any time.
+            if link.get_name() in self.get_drawer_name_list():
+                continue
+            for vis_body in link.get_collision_visual_bodies():
+                for render_shape in vis_body.get_render_shapes():
+                    vertices = render_shape.mesh.vertices
+                    if dense_sample_convex:
+                        vertices=_dense_sample_convex_pcd(vertices)
+                    storage_furniture_body_pcd+=vertices.tolist()
+        storage_furniture_body_pcd=np.array(storage_furniture_body_pcd)
+        # If the articulation.get_links()[1].get_visual_bodies() return [], just change the index 1 to other number
+        storage_furniture_body_pcd=storage_furniture_body_pcd * self.storage_furniture_body.get_links()[1].get_visual_bodies()[0].scale
+
+        tf_mat=self.storage_furniture_body.get_links()[1].get_pose().to_transformation_matrix()
+        storage_furniture_body_pcd_homo=np.concatenate((storage_furniture_body_pcd, np.ones((storage_furniture_body_pcd.shape[0],1))), axis=-1)
+        storage_furniture_body_pcd = (tf_mat@storage_furniture_body_pcd_homo.T).T[:,:-1]
+        
+        # The drawer pcd (including the handle) 
+        drawer_pcd=[]
+        for link in self.storage_furniture_body.get_links():
+            # The drawer should be isolatedly considered, because we need to get their open degree, 
+            # and then get their real-time pointcloud, as they can be moving at any time.
+            if link.get_name() in self.get_drawer_name_list():
+                drawer_pcd+=self.get_drawer_pcd_by_name(link.get_name(), dense_sample_convex).tolist()
+        drawer_pcd=np.array(drawer_pcd)
+
+        return np.concatenate((storage_furniture_body_pcd, drawer_pcd), axis=0)
     
+
     def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
         return get_pcd_normals_from_obj(self.storage_furniture_body, dense_sample_convex)
 
 
-    def get_handle_pcd_by_name(self, handle_name: str)->np.ndarray:
+    def get_handle_pcd_by_name(self, handle_name: str, dense_sample_convex:bool=False)->np.ndarray:
         handle : RenderBody = self.get_handle_by_name(handle_name)
         
         handle_pcd = handle.get_render_shapes()[0].mesh.vertices
@@ -98,20 +131,23 @@ class StorageFurniture(SpecifiedObject):
         open_distance = self.get_open_distance_by_name(handle_name)
         handle_pcd += open_distance * open_direction
 
+        if dense_sample_convex:
+            handle_pcd=_dense_sample_convex_pcd(handle_pcd)
+
         return handle_pcd
     
 
-    def get_drawer_pcd_by_name(self, drawer_name: str)->np.ndarray:
-        drawer : Actor = self.get_drawer_by_name(drawer_name)        
-        drawer_pcd = get_pcd_from_actor(drawer)
+    def get_drawer_pcd_by_name(self, drawer_name: str, dense_sample_convex:bool=False)->np.ndarray:
+        drawer : Link = self.get_drawer_by_name(drawer_name)        
+        drawer_pcd = get_pcd_from_actor(drawer, dense_sample_convex)
 
-        # We assume that the initial (when the urdf is loaded in) forward direction of the handle is [-1,0,0]
-        storage_furniture_tf_mat = self.storage_furniture_body.get_pose().to_transformation_matrix()
-        open_direction = (storage_furniture_tf_mat[:3,:3]@np.array([-1., 0., 0.]).T).T
-        open_direction = open_direction/np.linalg.norm(open_direction)
+        # # We assume that the initial (when the urdf is loaded in) forward direction of the handle is [-1,0,0]
+        # storage_furniture_tf_mat = self.storage_furniture_body.get_pose().to_transformation_matrix()
+        # open_direction = (storage_furniture_tf_mat[:3,:3]@np.array([-1., 0., 0.]).T).T
+        # open_direction = open_direction/np.linalg.norm(open_direction)
 
-        open_distance = self.get_open_distance_by_name(self.get_handle_by_drawer(drawer).get_name())
-        drawer_pcd += open_distance * open_direction
+        # open_distance = self.get_open_distance_by_name(self.get_handle_by_drawer(drawer).get_name())
+        # drawer_pcd += open_distance * open_direction
 
         return drawer_pcd
     
@@ -140,10 +176,10 @@ class StorageFurniture(SpecifiedObject):
     def set_open_degree_by_name(self, handle_name: str, degree: float):
         assert degree>=0 and degree<=1, "The degree should be between 0 and 1"
 
-        handle_index = handle_name.split("_")[-1]
+        handle_index = int(handle_name.split("_")[-1])
         open_limit = self.get_open_limit_by_name(handle_name)
-        new_qpos = self.get_open_distance_by_name(handle_name)
-        new_qpos[handle_index] = open_limit[handle_index] * degree 
+        new_qpos = self.storage_furniture_body.get_qpos().tolist()        
+        new_qpos[handle_index] = open_limit * degree 
         self.storage_furniture_body.set_qpos(new_qpos)
 
 

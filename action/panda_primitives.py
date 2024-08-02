@@ -216,7 +216,7 @@ class PandaPrimitives:
         self._close_gripper()
 
         for push_pose in push_pose_path[1:]:
-            if self._move_to_pose(push_pose, guarantee_screw_mp=True, speed_factor=1)==-1:
+            if self._move_to_pose(push_pose, guarantee_screw_mp=True, speed_factor=0.1)==-1:
                 print("Inverse Kinematics Computation Fails.")
                 return -1
         
@@ -333,6 +333,7 @@ class PandaPrimitives:
 
         if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
             print("Collision Avoidance Computation Fails.")
+            raise Exception()
             if self._move_to_pose(pregrasp_pose)==-1:
                 print("Inverse Kinematics Computation Fails.")
                 return -1
@@ -517,7 +518,7 @@ class PandaPrimitives:
             grasp_pose=sapien.Pose()
             grasp_pose.set_p(handle_parent.get_handle_pcd_by_name(handle_name).mean(axis=0) + 
                              p_bias * handle_direction - 
-                             3*handle_radius * pull_direction)
+                             2*handle_radius * pull_direction)
 
             sample_count = 1000
             P=2-2*np.abs(np.linspace(-1,1, sample_count))
@@ -558,6 +559,7 @@ class PandaPrimitives:
             return -1
 
         if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
+            raise Exception()
             print("Collision Avoidance Computation Fails.")
             if self._move_to_pose(pregrasp_pose)==-1:
                 print("Inverse Kinematics Computation Fails.")

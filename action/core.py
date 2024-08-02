@@ -81,17 +81,17 @@ class Move_Tool():
                     pcd = get_pcd_from_obj(obj, dense_sample_convex=True)
                     combined_pcd = np.concatenate((combined_pcd, pcd), axis=0)
             
-            # import open3d as o3d
-            # pcd_ = o3d.geometry.PointCloud()
-            # pcd_.points = o3d.utility.Vector3dVector(combined_pcd)
-            # o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
+            import open3d as o3d
+            pcd_ = o3d.geometry.PointCloud()
+            pcd_.points = o3d.utility.Vector3dVector(combined_pcd)
+            o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
 
             planner.update_point_cloud(combined_pcd)
         if collision_avoid_obj:
             pcd = get_pcd_from_obj(self.task_scene.get_object_by_name(collision_avoid_obj), dense_sample_convex=True)
             planner.update_point_cloud(pcd)
         if collision_avoid_attach_obj:
-            obj=self.task_scene.get_object_by_name(collision_avoid_obj)
+            obj=self.task_scene.get_object_by_name(collision_avoid_attach_obj)
             _updare_planner_attach_actor(planner, obj, obj.get_builder())
         
         for mounted_obj in self.robot.mounted_obj:

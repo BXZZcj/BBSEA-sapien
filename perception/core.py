@@ -67,10 +67,10 @@ def get_object_by_name(
 
 
 def get_pcd_from_obj(
-        obj: Union[Actor,Articulation,SpecifiedObject],
+        obj: Union[Actor,Link,Articulation,SpecifiedObject],
         dense_sample_convex:bool=False
 )->np.ndarray:
-    if type(obj)==Actor:
+    if type(obj)==Actor or type(obj)==Link:
         return get_pcd_from_actor(obj, dense_sample_convex)
     elif type(obj)==Articulation:
         return get_pcd_from_articulation(obj, dense_sample_convex)
@@ -138,7 +138,8 @@ def _get_pcd_from_single_actor(
         actor_builder = actor.get_builder()
     elif type(actor)==Link:
         for builder in actor.get_articulation().get_builder().get_link_builders():
-            if builder.get_name()==actor.get_name():
+            # if builder.get_name()==actor.get_name():
+            if builder.get_index()==actor.get_index():
                 actor_builder=builder
                 break
 
@@ -166,11 +167,38 @@ def _dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
     if len(point_cloud) > sample_count:
         return point_cloud
     
+    # In case the pointcloud cannot be a convex for dense sampling
+    normal_vector, are_coplanar = _are_points_coplanar(point_cloud)
+    if are_coplanar:
+        point_cloud_upward=point_cloud + normal_vector*0.000001
+        point_cloud_downward=point_cloud - normal_vector*0.000001
+        point_cloud=np.concatenate((point_cloud_upward, point_cloud_downward), axis=0)
+    
     hull = ConvexHull(point_cloud)
     mesh = trimesh.Trimesh(vertices=point_cloud, faces=hull.simplices)
     denser_pcd, _ = trimesh.sample.sample_surface(mesh, sample_count)
 
     return np.array(denser_pcd)
+
+
+def _are_points_coplanar(points:np.ndarray)->Union[np.ndarray, bool]:
+    if len(points) < 4:
+        return None, True 
+    
+    p1, p2, p3 = points[:3]
+    
+    v1 = np.array(p2) - np.array(p1)
+    v2 = np.array(p3) - np.array(p1)
+    
+    normal_vector = np.cross(v1, v2)
+    normal_vector=normal_vector/np.linalg.norm(normal_vector)
+    
+    for point in points[3:]:
+        v = np.array(point) - np.array(p1)
+        if not np.isclose(np.dot(normal_vector, v), 0, atol=1e-8):
+            return None, False
+    
+    return normal_vector, True
 
 
 def uniform_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:

@@ -25,7 +25,8 @@ def create_box(
         pose: sapien.Pose,
         half_size=[0.05, 0.05, 0.05],
         color=[1., 0., 0.],
-        name=''
+        name='',
+        load_in = True,
 ) -> sapien.Actor:
     """Create a box.
 
@@ -50,7 +51,8 @@ def create_box(
     # box.set_name(name)
     box.set_pose(pose)
 
-    task_scene.object_list.append(box)
+    if load_in:
+        task_scene.object_list.append(box)
     
     return box
 
@@ -61,6 +63,7 @@ def create_sphere(
         radius=0.05,
         color=[0., 1., 0.],
         name='',
+        load_in = True,
 ) -> sapien.Actor:
     """Create a sphere. See create_box."""
     builder = task_scene.scene.create_actor_builder()
@@ -72,7 +75,8 @@ def create_sphere(
     # However, you can set actor's damping, like air resistance.
     sphere.set_damping(linear=20, angular=20)
 
-    task_scene.object_list.append(sphere)
+    if load_in:
+        task_scene.object_list.append(sphere)
 
     return sphere
 
@@ -84,6 +88,7 @@ def create_capsule(
         half_length=0.05,
         color=[0., 0., 1.],
         name='',
+        load_in = True,
 ) -> sapien.Actor:
     """Create a capsule (x-axis <-> half_length). See create_box."""
     builder = task_scene.scene.create_actor_builder()
@@ -95,7 +100,8 @@ def create_capsule(
     # However, you can set actor's damping, like air resistance.
     capsule.set_damping(linear=20, angular=20)
 
-    task_scene.object_list.append(capsule)
+    if load_in:
+        task_scene.object_list.append(capsule)
 
     return capsule
 
@@ -108,6 +114,7 @@ def create_table(
         thickness=0.1,
         color=(0.8, 0.6, 0.4),
         name='table',
+        load_in = True,
 ) -> sapien.Actor:
     """Create a table (a collection of collision and visual shapes)."""
     builder = task_scene.scene.create_actor_builder()
@@ -131,7 +138,8 @@ def create_table(
     pose.set_p(np.array([pose.p[0], pose.p[1], pose.p[2]-thickness / 2])) # Make the top surface's z equal to 0
     table.set_pose(pose)
 
-    task_scene.object_list.append(table)
+    if load_in:
+        task_scene.object_list.append(table)
 
     return table
 
@@ -144,7 +152,8 @@ def load_object_mesh(
         texture_file_path='',
         scale = np.array([1., 1., 1.]),
         name='',
-        is_kinematic=False
+        is_kinematic=False,
+        load_in = True,
 ) -> sapien.Actor:
     if texture_file_path:
         material = task_scene.renderer.create_material()
@@ -173,7 +182,8 @@ def load_object_mesh(
         mesh = builder.build(name=name)
         mesh.set_pose(pose)
 
-    task_scene.object_list.append(mesh)
+    if load_in:
+        task_scene.object_list.append(mesh)
     
     return mesh
 
@@ -184,6 +194,7 @@ def load_articulation(
         scale=1,
         pose=sapien.Pose([0, 0, 0], [1, 0, 0, 0]),
         name='',
+        load_in = True,
 ) -> sapien.Articulation:
     loader = task_scene.scene.create_urdf_loader()
     loader.scale = scale
@@ -194,19 +205,22 @@ def load_articulation(
     model.set_name(name=name)
 
     for joint in model.get_active_joints():
-        joint.set_drive_property(stiffness=1000, damping=10)
+        joint.set_drive_property(stiffness=0, damping=20)
 
-    task_scene.object_list.append(model)
+    if load_in:
+        task_scene.object_list.append(model)
 
     return model
 
 
 def load_specified_object(
         task_scene: TaskScene,
-        specified_object: SpecifiedObject
+        specified_object: SpecifiedObject,
+        load_in = True,
 ) -> SpecifiedObject:
 
-    task_scene.object_list.append(specified_object)
+    if load_in:
+        task_scene.object_list.append(specified_object)
 
     return specified_object
 

@@ -24,6 +24,7 @@ class SimplePickPlaceScene(TaskScene):
         
         self._set_ground(
             altitude=-0.44867,
+            # altitude=-0.46867,
             texture_file=os.path.join(manipulate_root_path, "assets/ground_texture_1.jpg"),
         )
 
@@ -74,9 +75,10 @@ class SimplePickPlaceScene(TaskScene):
                 load_articulation(
                     task_scene=self,
                     urdf_file_path=os.path.join(manipulate_root_path,"assets/object/partnet-mobility/45290/mobility.urdf"),
-                    scale=0.3,
-                    pose=sapien.Pose([0.36, -0.55, 0.238579], euler.euler2quat(0,0,-np.pi/2)),
-                    name="StorageFurniture45290"
+                    scale=0.4,
+                    pose=sapien.Pose([0.3, -0.6, 0.318773], euler.euler2quat(0,0,-np.pi/2)),
+                    name="StorageFurniture45290",
+                    load_in=False
                 )
             ),
         )
@@ -122,11 +124,10 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.66, 0, 0.0163004]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/011_banana/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/011_banana/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/011_banana/texture_map.png'),
-            name='011_banana',
+            sapien.Pose(p=[0.66, 0, 0.0163004], q=euler.euler2quat(0,0,0)), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/banana/collision_meshes/collision.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/banana/visual_meshes/visual.dae'),
+            name='banana',
         )
         load_object_mesh(
             self, 
@@ -384,7 +385,7 @@ class SimplePickPlaceScene(TaskScene):
         while not self.viewer.closed:
             if step:
                 self.scene.step() 
-            # print(self.get_object_by_name("StorageFurniture45290").get_pose())
+            print(self.get_object_by_name("StorageFurniture45290").get_pose())
             self.scene.update_render()
             self.viewer.render()
 
@@ -397,5 +398,8 @@ if __name__ == '__main__':
 
     demo.set_subtask_dir(os.path.join(dataset_path, "task_0001/subtask_001"))
     demo.set_step_index(0)
-    demo.primitives.Push("003_cracker_box", [0,-1], 0.1)
+    # demo.primitives.Push("003_cracker_box",[0,-1],0.1)
+    demo.primitives.PrismaticJointOpen("StorageFurniture45290_handle_2")
+    # demo.primitives.Pick("banana")
+    # demo.primitives.PlaceOn("024_bowl")
     demo.set_step_index(0)
