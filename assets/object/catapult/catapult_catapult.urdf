@@ -1,0 +1,130 @@
+<?xml version="1.0" ?>
+<robot name="catapult">
+    <material name="material_0">
+        <color rgba="0.1 0.2 0.1 1"/> 
+    </material>
+    <material name="material_1">
+        <color rgba="1.0 0.2 0.2 1"/> 
+    </material>
+    <material name="material_2">
+        <color rgba="0.2 0.3 0.2 1"/> 
+    </material>
+
+	<link name="catapult">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="1.40400"/>
+			<inertia ixx="0.01064" ixy="0" ixz="0" iyy="0.00995" iyz="0" izz="0.02037"/>
+		</inertial>
+		<collision name="button_base">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="-0.20000 0.22500 0.00000"/>
+			<geometry>
+				<box size="0.06000 0.06000 0.03000"/>
+			</geometry>
+		</collision>
+		<visual name="button_base">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="-0.20000 0.22500 0.00000"/>
+			<geometry>
+				<box size="0.06000 0.06000 0.03000"/>
+			</geometry>
+			<material name="material_0"/>
+		</visual>
+		<collision name="catapult_side_0">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.04500 0.10500 0.00000"/>
+			<geometry>
+				<box size="0.03000 0.30000 0.03000"/>
+			</geometry>
+		</collision>
+		<visual name="catapult_side_0">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.04500 0.10500 0.00000"/>
+			<geometry>
+				<box size="0.03000 0.30000 0.03000"/>
+			</geometry>
+			<material name="material_0"/>
+		</visual>
+		<collision name="catapult_side_1">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="-0.04500 0.10500 0.00000"/>
+			<geometry>
+				<box size="0.03000 0.30000 0.03000"/>
+			</geometry>
+		</collision>
+		<visual name="catapult_side_1">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="-0.04500 0.10500 0.00000"/>
+			<geometry>
+				<box size="0.03000 0.30000 0.03000"/>
+			</geometry>
+			<material name="material_0"/>
+		</visual>
+		<collision name="catapult_back">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 -0.03000 0.00000"/>
+			<geometry>
+				<box size="0.06000 0.03000 0.03000"/>
+			</geometry>
+		</collision>
+		<visual name="catapult_back">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 -0.03000 0.00000"/>
+			<geometry>
+				<box size="0.06000 0.03000 0.03000"/>
+			</geometry>
+			<material name="material_0"/>
+		</visual>
+	</link>
+	<link name="button">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="0.05089"/>
+			<inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+		</inertial>
+		<collision name="button">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.0075"/>
+			<geometry>
+				<box size="0.03 0.03 0.015"/>
+				<!-- <capsule length="0.01200" radius="0.01500"/> -->
+			</geometry>
+		</collision>
+		<visual name="button">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.0075"/>
+			<geometry>
+				<box size="0.03 0.03 0.015"/>
+				<!-- <capsule length="0.04000" radius="0.01500"/> -->
+			</geometry>
+			<material name="material_1"/>
+		</visual>
+	</link>
+	<link name="catapult_arm">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+			<mass value="1.08000"/>
+			<inertia ixx="0.00818" ixy="0" ixz="0" iyy="0.00040" iyz="0" izz="0.00842"/>
+		</inertial>
+		<collision name="catapult_arm">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.15000 0.00000"/>
+			<geometry>
+				<box size="0.06000 0.30000 0.03000"/>
+			</geometry>
+		</collision>
+		<visual name="catapult_arm">
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.15000 0.00000"/>
+			<geometry>
+				<box size="0.06000 0.30000 0.03000"/>
+			</geometry>
+			<material name="material_2"/>
+		</visual>
+	</link>
+	<joint name="button_slider" type="prismatic">
+		<parent link="catapult"/>
+		<child link="button"/>
+		<limit lower="0.00000" upper="0.014"/>
+		<dynamics damping="1.0" friction="0.0001"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="-0.20000 0.22500 0.015"/>
+		<axis xyz="0.00000 0.00000 -1.00000"/>
+	</joint>
+	<joint name="catapult_hinge" type="revolute">
+		<parent link="catapult"/>
+		<child link="catapult_arm"/>
+		<limit lower="0.00000" upper="1.00000"/>
+		<dynamics damping="1.0" friction="0.0001"/>
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+		<axis xyz="1.00000 0.00000 0.00000"/>
+	</joint>
+</robot>

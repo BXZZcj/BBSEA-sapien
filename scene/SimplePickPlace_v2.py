@@ -100,7 +100,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.45, 0.55, 0.121987]), 
+            sapien.Pose(p=[0.75, 0.30, 0.121987]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/021_bleach_cleanser/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/021_bleach_cleanser/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/021_bleach_cleanser/texture_map.png'),
@@ -108,7 +108,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.5, 0.2, 0.0264248]), 
+            sapien.Pose(p=[0.6, -0.1, 0.0264248]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/030_fork/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/030_fork/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/030_fork/texture_map.png'),
@@ -116,7 +116,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.66, 0.4, 0.0187573]), 
+            sapien.Pose(p=[0.66, 0.05, 0.0187573]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/058_golf_ball/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/058_golf_ball/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/058_golf_ball/texture_map.png'),
@@ -131,7 +131,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.2, 0.5, 0.0524892]), 
+            sapien.Pose(p=[0.2, 0.5+0.15, 0.0524892]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/024_bowl/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/024_bowl/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/024_bowl/texture_map.png'),
@@ -141,7 +141,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.198658, 0.501984, 0.0177064]), 
+            sapien.Pose(p=[0.198658, 0.501984+0.15, 0.0177064]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/032_knife/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/032_knife/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/032_knife/texture_map.png'),
@@ -149,7 +149,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.236741, 0.453169, 0.036644]), 
+            sapien.Pose(p=[0.236741, 0.453169+0.15, 0.036644]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/065-e_cups/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/065-e_cups/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/065-e_cups/texture_map.png'),
@@ -157,7 +157,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.215343, 0.551748, 0.0388819]), 
+            sapien.Pose(p=[0.215343, 0.551748+0.15, 0.0388819]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/013_apple/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/013_apple/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/013_apple/texture_map.png'),
@@ -165,7 +165,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.17526, 0.432495, 0.0274318]), 
+            sapien.Pose(p=[0.17526, 0.432495+0.15, 0.0274318]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/014_lemon/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/014_lemon/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/014_lemon/texture_map.png'),
@@ -173,7 +173,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.126539, 0.464034, 0.0359189]), 
+            sapien.Pose(p=[0.126539, 0.464034+0.15, 0.0359189]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/015_peach/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/015_peach/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/015_peach/texture_map.png'),
@@ -181,7 +181,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.178729, 0.504284, 0.055457]), 
+            sapien.Pose(p=[0.178729, 0.504284+0.15, 0.055457]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/016_pear/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/016_pear/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/016_pear/texture_map.png'),
@@ -189,7 +189,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.270685, 0.537653, 0.0248391]), 
+            sapien.Pose(p=[0.270685, 0.537653+0.15, 0.0248391]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/012_strawberry/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/012_strawberry/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/012_strawberry/texture_map.png'),
@@ -197,7 +197,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.6, 0.5, 0.0266351]), 
+            sapien.Pose(p=[0.75, 0.1, 0.0266351]), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/077_rubiks_cube/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/077_rubiks_cube/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/077_rubiks_cube/texture_map.png'),
@@ -259,7 +259,13 @@ class SimplePickPlaceScene(TaskScene):
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-a_lego_duplo/texture_map.png'),
             name='073-a_lego_duplo',
         )
-
+        self.catepult = load_articulation(
+            task_scene=self,
+            urdf_file_path=os.path.join(manipulate_root_path, "assets/object/catapult/catapult_catapult.urdf"),
+            scale=1,
+            pose=sapien.Pose(p=[0.5,0.1,0.0130003]),
+            name="catapult",
+        )
 
     def _create_robot(self) -> None:
         self.first_person_camera = self._set_camera(
@@ -329,7 +335,7 @@ class SimplePickPlaceScene(TaskScene):
             leftward_record :bool = False,
             first_person_record :bool = False,
     ):
-        n_render_step = 8
+        n_render_step = 1
         self.scene.step()
 
         def _get_RGB(camera: CameraEntity, viewpoint: str):
@@ -385,21 +391,22 @@ class SimplePickPlaceScene(TaskScene):
         while not self.viewer.closed:
             if step:
                 self.scene.step() 
-            print(self.get_object_by_name("StorageFurniture45290").get_pose())
+            # print(self.get_object_by_name("catapult").get_pose())
             self.scene.update_render()
             self.viewer.render()
 
 
 if __name__ == '__main__':
     demo=SimplePickPlaceScene()
-    # demo.demo(step=True)
-    demo.scene.step() 
-    demo.scene.update_render()
+    demo.demo(step=False)
+    # demo.scene.step() 
+    # demo.scene.update_render()
 
-    demo.set_subtask_dir(os.path.join(dataset_path, "task_0001/subtask_001"))
-    demo.set_step_index(0)
-    # demo.primitives.Push("003_cracker_box",[0,-1],0.1)
-    demo.primitives.PrismaticJointOpen("StorageFurniture45290_handle_2")
-    # demo.primitives.Pick("banana")
-    # demo.primitives.PlaceOn("024_bowl")
-    demo.set_step_index(0)
+    # demo.set_subtask_dir(os.path.join(dataset_path, "task_0001/subtask_001"))
+    # demo.set_step_index(0)
+    # # demo.primitives.Push("003_cracker_box",[0,-1],0.1)
+    # demo.primitives.DrawerOpen("StorageFurniture45290_handle_1")
+    # demo.primitives.DrawerClose("StorageFurniture45290_handle_1")
+    # demo.primitives.Pick("016_pear")
+    # demo.primitives.PlaceOn("StorageFurniture45290_drawer_1")
+    # demo.set_step_index(0)

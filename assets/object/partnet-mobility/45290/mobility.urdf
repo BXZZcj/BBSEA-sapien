@@ -141,6 +141,7 @@
 		<child link="link_0"/>
 		<parent link="link_3"/>
 		<limit lower="0" upper="0.7"/>
+		<dynamics damping="20"/>
 	</joint>
 	<link name="link_1">
 		<visual name="drawer_front-21">
@@ -282,6 +283,7 @@
 		<child link="link_1"/>
 		<parent link="link_3"/>
 		<limit lower="0" upper="0.7"/>
+		<dynamics damping="20"/>
 	</joint>
 	<link name="link_2">
 		<visual name="drawer_side-10">
@@ -423,6 +425,7 @@
 		<child link="link_2"/>
 		<parent link="link_3"/>
 		<limit lower="0" upper="0.7"/>
+		<dynamics damping="20"/>
 	</joint>
 	<link name="link_3">
 		<visual name="vertical_side_panel-41">

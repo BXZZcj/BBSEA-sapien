@@ -1,11 +1,13 @@
 import sapien.core as sapien
 from sapien.utils import Viewer
-from sapien.core import Pose, Actor, CameraEntity
+from sapien.core import Pose, Actor, CameraEntity, Link
 import numpy as np
 from typing import Union, TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from scene.specified_object import Robot
+    from scene.core import TaskScene
 
 
 class SpecifiedObject:
@@ -22,6 +24,9 @@ class SpecifiedObject:
         pass
 
     def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
+        pass
+
+    def load_in(self, task_scene:'TaskScene'):
         pass
 
 
@@ -44,12 +49,14 @@ class TaskScene():
 
         self.viewer = Viewer(self.renderer)
         self.viewer.set_scene(self.scene)
+        # self.viewer.set_camera_xyz(x=0.26, y=-0.3, z=1.2)
+        # self.viewer.set_camera_rpy(r=0, p=-np.pi/2, y=np.pi)
         self.viewer.set_camera_xyz(x=1.66, y=0, z=0.8)
         self.viewer.set_camera_rpy(r=0, p=-0.8, y=np.pi)
         self.viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
 
-        self.object_list=[]
-        self.robot_list=[]
+        self.object_list:list[Actor, Link, SpecifiedObject]=[]
+        self.robot_list:list[Robot]=[]
         self._create_tabletop()
         self._create_robot()
 

@@ -121,9 +121,11 @@ class PandaPrimitives:
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
         for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
+            # joint.set_friction(10)
+            # joint.set_drive_property(stiffness=100, damping=100, force_limit=10)
             joint.set_drive_target(0)
         last_gripper_qpos=None
-        for i in range(100):  
+        for i in range(150):  
             qf = self.robot.robot_articulation.compute_passive_force(
                 gravity=True,
                 coriolis_and_centrifugal=True,
@@ -421,23 +423,28 @@ class PandaPrimitives:
         if place_pose==None or preplace_pose==None:
             return -1
 
-        if self._move_to_pose(preplace_pose, collision_avoid_all=True)==-1:
+        if self._move_to_pose(preplace_pose, collision_avoid_attach_obj=self.grasped_obj)==-1:
             print("Collision Avoidance Computation Fails.")
+            raise Exception()
             if self._move_to_pose(preplace_pose)==-1:
                 print("Inverse Kinematics Computation Fails.")
                 return -1
         
-        if self._move_to_pose(place_pose)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+        if self._move_to_pose(place_pose, collision_avoid_attach_obj=self.grasped_obj)==-1:
+            print("Collision Avoidance Computation Fails.")
+            if self._move_to_pose(place_pose)==-1:
+                print("Inverse Kinematics Computation Fails.")
+                return -1
         
         self._open_gripper()
 
         self.grasped_obj=None
         
-        if self._move_to_pose(preplace_pose)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+        if self._move_to_pose(preplace_pose, collision_avoid_all=True)==-1:
+            print("Collision Avoidance Computation Fails.")
+            if self._move_to_pose(preplace_pose)==-1:
+                print("Inverse Kinematics Computation Fails.")
+                return -1
         
         return 0
     
@@ -485,8 +492,16 @@ class PandaPrimitives:
         return 0
     
 
-    def PrismaticJointOpen(self, handle_name: str):
-        def _compute_pose_for_grasp(handle_name: str):
+    def DrawerOpen(self, handle_name: str, target_open_degree:float=1):
+        assert target_open_degree>=0 and target_open_degree<=1, "The target open degree should be between 0 and 1."
+        
+        handle_parent_name = handle_name.split("_")[0]
+        handle_parent : StorageFurniture = self.task_scene.get_object_by_name(handle_parent_name)
+        current_open_degree = handle_parent.get_open_degree_by_name(handle_name)
+        if current_open_degree>=target_open_degree:
+            return 0
+
+        def _compute_pose_for_grasp(handle_name: str, target_open_degree:float):
             handle_parent_name = handle_name.split("_")[0]
             handle_parent : StorageFurniture = self.task_scene.get_object_by_name(handle_parent_name)
             
@@ -501,6 +516,11 @@ class PandaPrimitives:
             pull_direction = np.concatenate((pull_direction, [0]))
             pull_direction = pull_direction / np.linalg.norm(pull_direction)
 
+            open_limit = handle_parent.get_open_limit_by_name(handle_name)
+            target_open_distance = target_open_degree * open_limit
+            current_open_distance = handle_parent.get_open_distance_by_name(handle_name)
+            open_displacement = target_open_distance - current_open_distance
+
             handle_direction = np.cross(pull_direction, np.array([0,0,1]))
             handle_direction = handle_direction/np.linalg.norm(handle_direction)
             _tmp_projection = np.dot(handle_pcd, handle_direction)
@@ -511,7 +531,7 @@ class PandaPrimitives:
 
             sample_count = 1000
             p_bias_candidate = np.linspace(-handle_half_length, handle_half_length, sample_count)
-            P=2-2*np.abs(np.linspace(-1,1, sample_count))
+            P=5-5*np.abs(np.linspace(-1,1, sample_count))
             P=P/P.sum()
             p_bias = p_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
             
@@ -521,7 +541,8 @@ class PandaPrimitives:
                              2*handle_radius * pull_direction)
 
             sample_count = 1000
-            P=2-2*np.abs(np.linspace(-1,1, sample_count))
+            circle_curve = lambda x : (1-(x-1)**2)**0.5
+            P=-1e10*np.log(circle_curve(np.abs(np.linspace(-1,1, sample_count))))
             P=P/P.sum()
             q_x_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
             q_y_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
@@ -544,18 +565,24 @@ class PandaPrimitives:
             grasp_z_direction = (R@base_z_direction.T).T
             grasp_pose.set_q(panda_xyz_direction_quant(grasp_x_direction, grasp_y_direction, grasp_z_direction))
 
-            pre_grasp_pose=sapien.Pose()
-            pre_grasp_pose.set_p(grasp_pose.p+pull_direction*np.random.uniform(0.1, 0.2))
-            pre_grasp_pose.set_q(grasp_pose.q)
+            ungrasp_pose=sapien.Pose()
+            ungrasp_pose.set_p(grasp_pose.p+pull_direction*open_displacement)
+            ungrasp_pose.set_q(grasp_pose.q)
 
-            return grasp_pose, pre_grasp_pose
+            pregrasp_pose=sapien.Pose()
+            pregrasp_pose.set_p(grasp_pose.p+
+                                np.random.uniform(max(0.05, open_displacement/3), open_displacement)*pull_direction + 
+                                np.random.randn(3)/50)
+            pregrasp_pose.set_q(euler.euler2quat(*(euler.quat2euler(grasp_pose.q)+np.random.randn(3)/50)))
+
+            return pregrasp_pose, grasp_pose, ungrasp_pose
 
         assert "handle" in handle_name, "Only the handle of target object is graspable."
 
         self._open_gripper()
 
-        grasp_pose, pregrasp_pose = _compute_pose_for_grasp(handle_name)
-        if grasp_pose==None or pregrasp_pose==None:
+        pregrasp_pose, grasp_pose, ungrasp_pose = _compute_pose_for_grasp(handle_name, target_open_degree)
+        if grasp_pose==None or pregrasp_pose==None or ungrasp_pose==None:
             return -1
 
         if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
@@ -571,7 +598,7 @@ class PandaPrimitives:
 
         self._close_gripper()
         
-        if self._move_to_pose(pregrasp_pose)==-1:
+        if self._move_to_pose(ungrasp_pose, speed_factor=0.3, guarantee_screw_mp=True)==-1:
             print("Inverse Kinematics Computation Fails.")
             return -1
         
@@ -580,5 +607,120 @@ class PandaPrimitives:
         return 0
     
 
-    def Press():
+    def DrawerClose(self, handle_name: str, target_open_degree:float=0):
+        assert target_open_degree>=0 and target_open_degree<=1, "The target open degree should be between 0 and 1."
+        
+        handle_parent_name = handle_name.split("_")[0]
+        handle_parent : StorageFurniture = self.task_scene.get_object_by_name(handle_parent_name)
+        current_open_degree = handle_parent.get_open_degree_by_name(handle_name)
+        if current_open_degree<=target_open_degree:
+            return 0
+
+        def _compute_pose_for_grasp(handle_name: str, target_open_degree:float):
+            handle_parent_name = handle_name.split("_")[0]
+            handle_parent : StorageFurniture = self.task_scene.get_object_by_name(handle_parent_name)
+            
+            handle_pcd = handle_parent.get_handle_pcd_by_name(handle_name)
+            parent_pcd = handle_parent.get_pcd()
+
+            handle_center = handle_pcd.mean(axis=0)
+            parent_center = parent_pcd.mean(axis=0)
+
+            push_direction = parent_center[:2] - handle_center[:2] 
+            # We assume the pull direction would be parellel with the horizontal ground
+            push_direction = np.concatenate((push_direction, [0]))
+            push_direction = push_direction / np.linalg.norm(push_direction)
+
+            open_limit = handle_parent.get_open_limit_by_name(handle_name)
+            target_open_distance = target_open_degree * open_limit
+            current_open_distance = handle_parent.get_open_distance_by_name(handle_name)
+            close_displacement = current_open_distance - target_open_distance 
+
+            handle_direction = np.cross(push_direction, np.array([0,0,1]))
+            handle_direction = handle_direction/np.linalg.norm(handle_direction)
+            _tmp_projection = np.dot(handle_pcd, handle_direction)
+            handle_half_length = (_tmp_projection.max() - _tmp_projection.min())/2
+
+            _tmp_projection = np.dot(handle_pcd, push_direction)
+            handle_radius = (_tmp_projection.max() - _tmp_projection.min())/2
+
+            sample_count = 1000
+            p_bias_candidate = np.linspace(-handle_half_length, handle_half_length, sample_count)
+            P=5-5*np.abs(np.linspace(-1,1, sample_count))
+            P=P/P.sum()
+            p_bias = p_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            
+            grasp_pose=sapien.Pose()
+            grasp_pose.set_p(handle_parent.get_handle_pcd_by_name(handle_name).mean(axis=0) + 
+                             p_bias * handle_direction +
+                             1*handle_radius * push_direction)
+
+            sample_count = 1000
+            circle_curve = lambda x : (1-(x-1)**2)**0.5
+            P=-1e10*np.log(circle_curve(np.abs(np.linspace(-1,1, sample_count))))
+            P=P/P.sum()
+            q_x_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
+            q_y_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
+            q_z_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
+            q_x_bias = q_x_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            q_y_bias = q_y_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            q_z_bias = q_z_bias_candidate[np.random.choice(sample_count, size=1, p=P).item()]
+            
+            base_z_direction = push_direction
+            base_z_direction=base_z_direction/np.linalg.norm(base_z_direction)
+            base_x_direction = np.cross([0,0,1], base_z_direction)
+            base_x_direction=base_x_direction/np.linalg.norm(base_x_direction)
+            base_y_direction = np.cross(base_z_direction, base_x_direction)
+            base_y_direction=base_y_direction/np.linalg.norm(base_y_direction)
+
+            R = euler.euler2mat(q_z_bias, q_y_bias, q_x_bias, axes='rzyx')
+
+            grasp_x_direction = (R@base_x_direction.T).T
+            grasp_y_direction = (R@base_y_direction.T).T
+            grasp_z_direction = (R@base_z_direction.T).T
+            grasp_pose.set_q(panda_xyz_direction_quant(grasp_x_direction, grasp_y_direction, grasp_z_direction))
+
+            ungrasp_pose=sapien.Pose()
+            ungrasp_pose.set_p(grasp_pose.p+push_direction*close_displacement)
+            ungrasp_pose.set_q(grasp_pose.q)
+
+            pregrasp_pose=sapien.Pose()
+            pregrasp_pose.set_p(grasp_pose.p-
+                                np.random.uniform(max(0.05, close_displacement/3), close_displacement)*push_direction + 
+                                np.random.randn(3)/50)
+            pregrasp_pose.set_q(euler.euler2quat(*(euler.quat2euler(grasp_pose.q)+np.random.randn(3)/50)))
+
+            return pregrasp_pose, grasp_pose, ungrasp_pose
+
+        assert "handle" in handle_name, "Only the handle of target object is graspable."
+
+        self._open_gripper()
+
+        pregrasp_pose, grasp_pose, ungrasp_pose = _compute_pose_for_grasp(handle_name, target_open_degree)
+        if grasp_pose==None or pregrasp_pose==None or ungrasp_pose==None:
+            return -1
+
+        if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
+            raise Exception()
+            print("Collision Avoidance Computation Fails.")
+            if self._move_to_pose(pregrasp_pose)==-1:
+                print("Inverse Kinematics Computation Fails.")
+                return -1
+        
+        if self._move_to_pose(grasp_pose)==-1:
+            print("Inverse Kinematics Computation Fails.")
+            return -1
+
+        self._close_gripper()
+        
+        if self._move_to_pose(ungrasp_pose, speed_factor=0.3, guarantee_screw_mp=True)==-1:
+            print("Inverse Kinematics Computation Fails.")
+            return -1
+        
+        self._open_gripper()
+        
+        return 0
+    
+
+    def Press(self, ):
         pass

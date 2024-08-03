@@ -74,33 +74,34 @@ class Move_Tool():
                         np.concatenate([T, mat2quat(R)]),
                     )
         
-        if collision_avoid_all or collision_avoid_all_except:
+        if collision_avoid_all or collision_avoid_all_except or collision_avoid_attach_obj:
             combined_pcd=np.array([]).reshape(0, 3)
             for obj in self.task_scene.object_list:
-                if obj.get_name() not in collision_avoid_all_except:
+                if obj.get_name() not in collision_avoid_all_except and obj.get_name()!=collision_avoid_attach_obj:
                     pcd = get_pcd_from_obj(obj, dense_sample_convex=True)
                     combined_pcd = np.concatenate((combined_pcd, pcd), axis=0)
             
-            import open3d as o3d
-            pcd_ = o3d.geometry.PointCloud()
-            pcd_.points = o3d.utility.Vector3dVector(combined_pcd)
-            o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
+            # import open3d as o3d
+            # pcd_ = o3d.geometry.PointCloud()
+            # pcd_.points = o3d.utility.Vector3dVector(combined_pcd)
+            # o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
 
             planner.update_point_cloud(combined_pcd)
+
+            if collision_avoid_attach_obj:
+                obj=self.task_scene.get_object_by_name(collision_avoid_attach_obj)
+                _updare_planner_attach_actor(planner, obj, obj.get_builder())
+            for mounted_obj in self.robot.mounted_obj:
+                for builder in mounted_obj.get_articulation().get_builder().get_link_builders():
+                    if builder.get_index()==mounted_obj.get_index():
+                        actor_builder=builder
+                        break
+                _updare_planner_attach_actor(planner, mounted_obj, actor_builder)
+
         if collision_avoid_obj:
             pcd = get_pcd_from_obj(self.task_scene.get_object_by_name(collision_avoid_obj), dense_sample_convex=True)
             planner.update_point_cloud(pcd)
-        if collision_avoid_attach_obj:
-            obj=self.task_scene.get_object_by_name(collision_avoid_attach_obj)
-            _updare_planner_attach_actor(planner, obj, obj.get_builder())
         
-        for mounted_obj in self.robot.mounted_obj:
-            for builder in mounted_obj.get_articulation().get_builder().get_link_builders():
-                if builder.get_name()==mounted_obj.get_name():
-                    actor_builder=builder
-                    break
-            _updare_planner_attach_actor(planner, mounted_obj, actor_builder)
-
         return planner
     
 

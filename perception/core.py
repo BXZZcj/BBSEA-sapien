@@ -125,7 +125,7 @@ def get_pcd_from_actor(
 
 
 def _get_pcd_from_single_actor(
-        actor: Union[Actor, Link], 
+        obj: Union[Actor, Link], 
         vis_body: RenderBody,
         dense_sample_convex:bool=False
 ) -> np.ndarray:    
@@ -134,19 +134,19 @@ def _get_pcd_from_single_actor(
     # You must get the scale of the box, or the radius of the sphere, and in spaien 2.2.0, 
     # you can only get it from the actor builder. However, you cannot directly get Link (actor)
     # builder merely through actor.get_builder(). So we need special case handling, just as follows.
-    if type(actor)==Actor:
-        actor_builder = actor.get_builder()
-    elif type(actor)==Link:
-        for builder in actor.get_articulation().get_builder().get_link_builders():
+    if type(obj)==Actor:
+        obj_builder = obj.get_builder()
+    elif type(obj)==Link:
+        for builder in obj.get_articulation().get_builder().get_link_builders():
             # if builder.get_name()==actor.get_name():
-            if builder.get_index()==actor.get_index():
-                actor_builder=builder
+            if builder.get_index()==obj.get_index():
+                obj_builder=builder
                 break
 
     if vis_body.type == "box":
-        vertices = _dense_sample_convex_pcd(vertices * actor_builder.get_visuals()[0].scale)
+        vertices = _dense_sample_convex_pcd(vertices * obj_builder.get_visuals()[0].scale)
     elif vis_body.type == "sphere":
-        vertices = vertices * actor_builder.get_visuals()[0].radius
+        vertices = vertices * obj_builder.get_visuals()[0].radius
     elif vis_body.type == "capsule":
         vertices = vertices
     elif vis_body.type == "mesh":
@@ -155,7 +155,7 @@ def _get_pcd_from_single_actor(
     if dense_sample_convex:
         vertices=_dense_sample_convex_pcd(vertices)
 
-    tf_mat = actor.get_pose().to_transformation_matrix() @ vis_body.local_pose.to_transformation_matrix()
+    tf_mat = obj.get_pose().to_transformation_matrix() @ vis_body.local_pose.to_transformation_matrix()
     vertices_homo = np.concatenate((vertices, np.ones((vertices.shape[0],1))), axis=-1)
     pcd = (tf_mat @ vertices_homo.T).T[:,:-1]
     
@@ -182,6 +182,7 @@ def _dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
 
 
 def _are_points_coplanar(points:np.ndarray)->Union[np.ndarray, bool]:
+    points=np.unique(points, axis=0)
     if len(points) < 4:
         return None, True 
     
@@ -236,10 +237,10 @@ def get_normals_from_actor(actor: Actor, point_cloud: np.ndarray) -> np.ndarray:
 
 
 def get_pcd_normals_from_obj(
-        obj: Union[Actor, Articulation, SpecifiedObject],
-        dense_sample_convex:bool=False
+        obj: Union[Actor, Link, Articulation, SpecifiedObject],
+        dense_sample_convex:bool=False,
 )->Tuple[np.ndarray, np.ndarray]:
-    if type(obj)==Actor:
+    if type(obj)==Actor or type(obj)==Link:
         return get_pcd_normals_from_actor(obj, dense_sample_convex)
     elif type(obj)==Articulation:
         return get_pcd_normals_from_articulation(obj, dense_sample_convex)
@@ -250,18 +251,27 @@ def get_pcd_normals_from_obj(
 
 
 def get_pcd_normals_from_actor(
-        actor: Actor,
+        obj: Union[Actor, Link],
         dense_sample_convex:bool=False
 ) -> Tuple[np.ndarray, np.ndarray]:
-    # You can directly get normals from actors which are loaded from mesh files
-    if actor.get_builder().get_visuals()[0].type == "File":
-        return get_pcd_from_actor(actor), actor.get_visual_bodies()[0].get_render_shapes()[0].mesh.normals
-    
+    if type(obj)==Actor:
+        obj_builder = obj.get_builder()
+    elif type(obj)==Link:
+        for builder in obj.get_articulation().get_builder().get_link_builders():
+            if builder.get_index()==obj.get_index():
+                obj_builder=builder
+                break
+        
     pcd = np.array([]).reshape(0, 3)
     normals = np.array([]).reshape(0, 3)
-    for vis_body in actor.get_visual_bodies():
-        part_pcd = _get_pcd_from_single_actor(actor, vis_body, dense_sample_convex)
-        part_normals = _get_normals_from_single_actor(part_pcd)
+    for obj_type, vis_body in zip(obj_builder.get_visuals(), obj.get_visual_bodies()):
+        # You can directly get normals from actors which are loaded from mesh files
+        if obj_type=="File":
+            part_pcd = _get_pcd_from_single_actor(obj, vis_body)
+            part_normals = vis_body.get_render_shapes()[0].mesh.normals
+        else:
+            part_pcd = _get_pcd_from_single_actor(obj, vis_body, dense_sample_convex)
+            part_normals = _get_normals_from_single_actor(part_pcd)
         pcd = np.concatenate((pcd, part_pcd), axis=0)
         normals = np.concatenate((normals, part_normals), axis=0)
 

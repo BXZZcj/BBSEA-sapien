@@ -87,7 +87,7 @@ def load_robot(
     )
     if mounted_camera_info:
         robot_specified_object.add_mounted_obj(mounted_camera_info["camera"].parent)
-    task_scene.robot_list.append(robot_specified_object)
-    task_scene.object_list
+    robot_specified_object.load_in(task_scene=task_scene)
+    # task_scene.robot_list.append(robot_specified_object)
 
     return robot_specified_object
