@@ -1,6 +1,7 @@
 import cv2
 import os
 import numpy as np
+import open3d as o3d
 
 from config import dataset_path
 
@@ -31,7 +32,14 @@ def create_video_from_RGB(
     out.release()
     print(f"Video saved as {output_video_file}")
 
-# Example usage
-image_folder = os.path.join(dataset_path, "task_0001/subtask_001/Backward")
-output_video_file = 'output_video.avi'
-create_video_from_RGB(image_folder, output_video_file, fps=100)
+
+def visualize_pcd(pcd):
+    pcd_ = o3d.geometry.PointCloud()
+    pcd_.points = o3d.utility.Vector3dVector(pcd)
+    o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
+
+
+if __name__=="__main__":
+    image_folder = os.path.join(dataset_path, "task_0001/subtask_001/FirstPerson")
+    output_video_file = 'output_video.avi'
+    create_video_from_RGB(image_folder, output_video_file, fps=100)

@@ -1,33 +1,36 @@
 import sapien.core as sapien
 from sapien.utils import Viewer
-from sapien.core import Pose, Actor, CameraEntity, Link
+from sapien.core import Pose, Actor, Articulation, CameraEntity, Link
 import numpy as np
 from typing import Union, TYPE_CHECKING
 
 
 if TYPE_CHECKING:
     from scene.specified_object import Robot
-    from scene.core import TaskScene
+    from scene.core import TaskScene, SpecifiedObject
 
 
 class SpecifiedObject:
     def __init__(self):
+        self.body: Union[Articulation, Link, Actor]=None
         pass
 
-    def get_name(self):
-        pass
+    def get_name(self)->str:
+        return self.body.get_name()
 
     def get_pose(self)->sapien.Pose:
-        pass
+        return self.body.get_pose()
 
-    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray:
-        pass
+    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray:   
+        from perception.core import get_pcd_from_obj
+        return get_pcd_from_obj(self.body, dense_sample_convex)
 
     def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
-        pass
+        from perception.core import get_pcd_normals_from_obj
+        return get_pcd_normals_from_obj(self.body, dense_sample_convex)
 
     def load_in(self, task_scene:'TaskScene'):
-        pass
+        task_scene.object_list.append(self)
 
 
 class TaskScene():
@@ -95,8 +98,8 @@ class TaskScene():
             name = "_camera",
             near:float = 0.001,
             far:float = 100,
-            width:int = 640, 
-            height:int = 480,
+            width:int = 1024, 
+            height:int = 768,
             fovy:np.ndarray = np.deg2rad(57.3),
             camera_pose_origin:np.ndarray = np.array([1.66, 0, 0.8]),
             camera_pose_target:np.ndarray = np.array([0, 0, 0]),
@@ -138,8 +141,8 @@ class TaskScene():
             name = "_camera",
             near:float = 0.05,
             far:float = 100,
-            width:int = 640, 
-            height:int = 480,
+            width:int = 1024, 
+            height:int = 768,
             fovy:np.ndarray = np.deg2rad(57.3),
         )->CameraEntity:
         camera = self.scene.add_camera(

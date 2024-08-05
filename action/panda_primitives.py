@@ -11,7 +11,6 @@ from .core import Move_Tool
 from perception import get_pcd_from_actor, \
     get_pcd_from_obj, \
     get_actor_by_name, \
-    get_normals_from_actor, \
     get_pcd_normals_from_obj
 from transforms3d import euler, quaternions
 from utils import panda_x_direction_quant, panda_z_direction_quant, panda_xyz_direction_quant
@@ -41,6 +40,16 @@ class PandaPrimitives:
             )    
         
         self.grasped_obj = None
+
+
+    def _move_by_path(
+            self,
+            mp_result,
+    )->None:
+        return self.move_tool.follow_path(
+            result=mp_result,
+            n_render_step=self.n_render_step
+        )
 
 
     def _move_to_pose(
@@ -81,28 +90,28 @@ class PandaPrimitives:
             target=0.4
     ) -> None:
         # This disturbation aims to make the gripper open process more stable.
-        for link in self.robot.robot_articulation.get_links():
+        for link in self.robot.body.get_links():
             if link.get_name()==self.robot.move_group:
                 disturbation=link.get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False) 
         
 
-        for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
+        for joint in self.robot.body.get_active_joints()[-2:]:
             joint.set_drive_target(target)   
         last_gripper_qpos=None
         for i in range(100): 
-            qf = self.robot.robot_articulation.compute_passive_force(
+            qf = self.robot.body.compute_passive_force(
                 gravity=True, 
                 coriolis_and_centrifugal=True,
                 # external=False,
             )
-            self.robot.robot_articulation.set_qf(qf)  
+            self.robot.body.set_qf(qf)  
 
             self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
 
             # In case the range(100) is too long
-            current_gripper_qpos = self.robot.robot_articulation.get_qpos()[-2:]
+            current_gripper_qpos = self.robot.body.get_qpos()[-2:]
             if np.array_equal(current_gripper_qpos, last_gripper_qpos):
                 break
             else:
@@ -114,29 +123,29 @@ class PandaPrimitives:
 
     def _close_gripper(self) -> None:
         # This disturbation aims to make the gripper close process more stable.
-        for link in self.robot.robot_articulation.get_links():
+        for link in self.robot.body.get_links():
             if link.get_name()==self.robot.move_group:
                 disturbation=link.get_pose()
         disturbation.set_p([disturbation.p[0], disturbation.p[1], disturbation.p[2]+0.001])
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
-        for joint in self.robot.robot_articulation.get_active_joints()[-2:]:
+        for joint in self.robot.body.get_active_joints()[-2:]:
             # joint.set_friction(10)
             # joint.set_drive_property(stiffness=100, damping=100, force_limit=10)
             joint.set_drive_target(0)
         last_gripper_qpos=None
         for i in range(150):  
-            qf = self.robot.robot_articulation.compute_passive_force(
+            qf = self.robot.body.compute_passive_force(
                 gravity=True,
                 coriolis_and_centrifugal=True,
                 # external=False,
             )
-            self.robot.robot_articulation.set_qf(qf)   
+            self.robot.body.set_qf(qf)   
 
             self.task_scene.step(render_step=i, n_render_step=self.n_render_step)
 
             # In case the range(100) is too long
-            current_gripper_qpos = self.robot.robot_articulation.get_qpos()[-2:]
+            current_gripper_qpos = self.robot.body.get_qpos()[-2:]
             if np.array_equal(current_gripper_qpos, last_gripper_qpos):
                 break
             else:
@@ -149,6 +158,7 @@ class PandaPrimitives:
             direction:list,
             distance:float,
     ):
+        direction=np.array(direction)
         assert len(direction)==2 or len(direction)==3, "The direction shape is invalid." 
         if len(direction)==2:
             direction=np.concatenate((direction,[0]))
@@ -156,16 +166,20 @@ class PandaPrimitives:
         
         def _compute_pose_for_push(
                 object_name:str, 
-                direction:list, 
+                direction:np.ndarray, 
                 distance:float
         )-> Pose:
             obj = self.task_scene.get_object_by_name(object_name)
             obj_pcd = get_pcd_from_obj(obj)
             obj_center = np.mean(obj_pcd, axis=0)
 
-            projections = np.dot(obj_pcd, direction)
-            long_axis = projections.max() - projections.min()
-            height=obj_pcd[:,2].max()-obj_pcd[:,2].min()
+            _tmp_projections = np.dot(obj_pcd, direction)
+            obj_direction_range = _tmp_projections.max() - _tmp_projections.min()
+
+            _right = np.cross(np.array([0,0,1]), direction)
+            _up = np.cross(direction, _right)
+            _tmp_projections = np.dot(obj_pcd, _up)
+            obj_zaxis_range = _tmp_projections.max() - _tmp_projections.min()
 
             # Make the gripper pushing plane parellel with the object pushed plane
             # Especially when there is a camera mounted on the end effector
@@ -178,10 +192,10 @@ class PandaPrimitives:
             # The z value should be a little bigger than 0 (z value of the table top), 
             # or the collision avoidance equation will never be solved,
             # because the gripper will always contact with the table top  
-            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+height/3]) - direction * (long_axis/2+0.1))
+            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+obj_zaxis_range/3]) - direction * (obj_direction_range/2+np.random.uniform(0.08, 0.15)))
             pose_pre_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
-            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+height/3]) + direction * distance)
+            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+obj_zaxis_range/3]) + direction * distance)
             pose_post_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
             return pose_pre_push, pose_post_push
@@ -277,21 +291,21 @@ class PandaPrimitives:
                     q = panda_gripper_q,
                 )
                 
-                if self.move_tool.check_feasibility(grasp_pose) \
-                    and self.move_tool.check_feasibility(pregrasp_pose):
+                if self.move_tool.check_reachability_IK(target_pose=grasp_pose) \
+                    and self.move_tool.check_reachability_IK(target_pose=pregrasp_pose):
                     break
                 else:
                     attempt_count+=1
                     grasp_pose, pregrasp_pose = None, None
                     continue
 
-            return grasp_pose, pregrasp_pose      
+            return grasp_pose, pregrasp_pose
 
-        
+
         def _cal_pick_orientation(pcd: np.ndarray) -> np.array:
             # Project all points to the XY plane (top-down view)
             xy_points = pcd[:, :2]
-        
+
             # Calculate the center of the points
             center = np.mean(xy_points, axis=0)
 
@@ -307,7 +321,7 @@ class PandaPrimitives:
                 t = np.clip(t, 0, 1)
                 closest_point = edge[0] + t * vector
                 closest_points_to_center.append(closest_point)
-        
+
             # Select the edge for which the closest point is also closest to the centroid
             closest_point_index = np.argmin([np.linalg.norm(point - center) for point in closest_points_to_center])
             direction_vector = closest_points_to_center[closest_point_index] - center + [0]
@@ -320,12 +334,12 @@ class PandaPrimitives:
             panda_q_mirror1 = panda_x_direction_quant(panda_x_direction_mirror1)
             panda_q_mirror2 = panda_x_direction_quant(panda_x_direction_mirror2)
 
-            panda_gripper_q_cur = self.robot.robot_articulation.get_links()[-3].get_pose().q.tolist()
+            panda_gripper_q_cur = self.robot.body.get_links()[-3].get_pose().q.tolist()
 
             final_gripper_q = panda_q_mirror1 if sum(panda_gripper_q_cur*panda_q_mirror1) < sum(panda_gripper_q_cur*panda_q_mirror2) else panda_q_mirror2
             
             return final_gripper_q
-        
+
 
         self._open_gripper()
 
@@ -343,7 +357,7 @@ class PandaPrimitives:
         if self._move_to_pose(grasp_pose)==-1:
             print("Inverse Kinematics Computation Fails.")
             return -1
-        
+
         self._close_gripper()
         
         if self._move_to_pose(pregrasp_pose, collision_avoid_attach_obj=object_name)==-1:
@@ -409,8 +423,8 @@ class PandaPrimitives:
                     q = place_direction_quant
                 )
                 
-                if self.move_tool.check_feasibility(place_pose) \
-                    and self.move_tool.check_feasibility(preplace_pose):
+                if self.move_tool.check_reachability_IK(target_pose=place_pose) \
+                    and self.move_tool.check_reachability_IK(target_pose=preplace_pose):
                     break
                 else:
                     place_pose, preplace_pose = None, None
@@ -456,12 +470,12 @@ class PandaPrimitives:
         def _compute_pose_for_place(place_pos):
             place_pose = Pose(
                 p = place_pos,
-                q = self.robot.robot_articulation.get_links()[-3].get_pose().q
+                q = self.robot.body.get_links()[-3].get_pose().q
             )
 
             preplace_pose = Pose(
                 p = place_pos + np.random.uniform(0.2, 0.3) * np.array([0,0,1]),
-                q = self.robot.robot_articulation.get_links()[-3].get_pose().q
+                q = self.robot.body.get_links()[-3].get_pose().q
             )
 
             return place_pose, preplace_pose 
@@ -492,7 +506,11 @@ class PandaPrimitives:
         return 0
     
 
-    def DrawerOpen(self, handle_name: str, target_open_degree:float=1):
+    def DrawerOpen(
+            self, 
+            handle_name: str, 
+            target_open_degree:float=1
+    ):
         assert target_open_degree>=0 and target_open_degree<=1, "The target open degree should be between 0 and 1."
         
         handle_parent_name = handle_name.split("_")[0]
@@ -542,7 +560,7 @@ class PandaPrimitives:
 
             sample_count = 1000
             circle_curve = lambda x : (1-(x-1)**2)**0.5
-            P=-1e10*np.log(circle_curve(np.abs(np.linspace(-1,1, sample_count))))
+            P=-1e10*np.log(circle_curve(circle_curve(np.abs(np.linspace(-1,1, sample_count)))))
             P=P/P.sum()
             q_x_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
             q_y_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
@@ -607,7 +625,11 @@ class PandaPrimitives:
         return 0
     
 
-    def DrawerClose(self, handle_name: str, target_open_degree:float=0):
+    def DrawerClose(
+            self, 
+            handle_name: str, 
+            target_open_degree:float=0
+    ):
         assert target_open_degree>=0 and target_open_degree<=1, "The target open degree should be between 0 and 1."
         
         handle_parent_name = handle_name.split("_")[0]
@@ -657,7 +679,7 @@ class PandaPrimitives:
 
             sample_count = 1000
             circle_curve = lambda x : (1-(x-1)**2)**0.5
-            P=-1e10*np.log(circle_curve(np.abs(np.linspace(-1,1, sample_count))))
+            P=-1e10*np.log(circle_curve(circle_curve(np.abs(np.linspace(-1,1, sample_count)))))
             P=P/P.sum()
             q_x_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
             q_y_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
@@ -716,11 +738,69 @@ class PandaPrimitives:
         if self._move_to_pose(ungrasp_pose, speed_factor=0.3, guarantee_screw_mp=True)==-1:
             print("Inverse Kinematics Computation Fails.")
             return -1
+
+        self._open_gripper()
+
+        return 0
+
+
+    def Press(
+            self, 
+            obj_name: str, 
+            direction: np.ndarray=np.array([0,0,-1]), 
+            distance: int = 0.015,
+    ):
+        direction = np.array(direction)
+        assert len(direction)==2 or len(direction)==3, "The direction shape is invalid." 
+        if len(direction)==2:
+            direction=np.concatenate((direction,[0]))
+        direction = direction/np.linalg.norm(direction)
+        
+        def _compute_pose_for_press(
+                object_name:str, 
+                direction:np.ndarray, 
+                distance:float
+        )-> Pose:
+            obj = self.task_scene.get_object_by_name(object_name)
+            obj_pcd = get_pcd_from_obj(obj)
+            obj_center = np.mean(obj_pcd, axis=0)
+
+            _tmp_projections = np.dot(obj_pcd, direction)
+            obj_direction_range = _tmp_projections.max() - _tmp_projections.min()
+
+            z_direction=direction
+            x_direction=np.random.rand(3)
+            x_direction=x_direction/np.linalg.norm(x_direction)
+            y_direction=np.cross(z_direction, x_direction)
+            gripper_quant = panda_xyz_direction_quant(x_direction, y_direction, z_direction)
+
+            pose_pre_push, pose_post_push = sapien.Pose(), sapien.Pose()
+            # The z value should be a little bigger than 0 (z value of the table top), 
+            # or the collision avoidance equation will never be solved,
+            # because the gripper will always contact with the table top  
+            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2]]) - direction * (obj_direction_range/2+np.random.uniform(0.08, 0.15)))
+            pose_pre_push.set_q(gripper_quant)
+
+            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2]]) + direction * distance)
+            pose_post_push.set_q(gripper_quant)
+
+            return pose_pre_push, pose_post_push
         
         self._open_gripper()
+
+        pose_prepress, pose_press = _compute_pose_for_press(obj_name, direction, distance)
+
+        if self._move_to_pose(pose_prepress, collision_avoid_all=True)==-1:
+            raise Exception()
+            print("Collision Avoidance Computation Fails.")
+            if self._move_to_pose(push_pose_path[0])==-1:
+                print("Inverse Kinematics Computation Fails.")
+                return -1
+            
+        self._close_gripper()
+
+        if self._move_to_pose(pose_press, guarantee_screw_mp=True, speed_factor=0.1)==-1:
+            print("Inverse Kinematics Computation Fails.")
+            return -1
         
         return 0
-    
-
-    def Press(self, ):
-        pass

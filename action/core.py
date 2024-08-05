@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 from transforms3d.affines import decompose44
 from transforms3d.quaternions import mat2quat
+from typing import Tuple
 
 from perception import get_pcd_from_actor, get_actor_by_name, get_pcd_from_obj
 from scene.core import TaskScene
@@ -81,10 +82,8 @@ class Move_Tool():
                     pcd = get_pcd_from_obj(obj, dense_sample_convex=True)
                     combined_pcd = np.concatenate((combined_pcd, pcd), axis=0)
             
-            # import open3d as o3d
-            # pcd_ = o3d.geometry.PointCloud()
-            # pcd_.points = o3d.utility.Vector3dVector(combined_pcd)
-            # o3d.visualization.draw_geometries([pcd_], window_name="Open3D Point Cloud Visualization")
+            # from utils.visualization import visualize_pcd
+            # visualize_pcd(combined_pcd)
 
             planner.update_point_cloud(combined_pcd)
 
@@ -106,21 +105,113 @@ class Move_Tool():
     
 
     # The IK method provided by mplib is unable to check collision avoidance
-    def check_feasibility(
+    def check_reachability_IK(
             self, 
             target_pose: Pose
     ) -> bool:
         planner = self.setup_planner(collision_avoid_all=True)
         target_pose=target_pose.p.tolist() + target_pose.q.tolist()
-        init_qpos=self.robot.robot_articulation.get_qpos().tolist()
+        init_qpos=self.robot.body.get_qpos().tolist()
         status, _ = planner.IK(target_pose, init_qpos)
 
         return status=="Success"
+    
+    
+    def check_reachability_MP(
+            self,
+            target_pose: sapien.Pose,
+            collision_avoid_attach_obj="",
+            collision_avoid_obj="",
+            collision_avoid_all=False,
+            collision_avoid_all_except=[],
+            mp_algo=[False, False, False, True],
+    ) -> bool:
+        screw_result_w_CA, screw_result_wo_CA, sampling_result_w_CA, sampling_result_wo_CA = \
+        self.motion_planning(
+            target_pose,
+            collision_avoid_attach_obj,
+            collision_avoid_obj,
+            collision_avoid_all,
+            collision_avoid_all_except,
+            mp_algo,
+        )
+
+        return screw_result_w_CA['status'] == "Success", \
+            screw_result_wo_CA['status'] == "Success", \
+            sampling_result_w_CA['status'] == "Success", \
+            sampling_result_wo_CA['status'] == "Success"
+    
+
+    def motion_planning(
+            self,
+            target_pose: sapien.Pose,
+            collision_avoid_attach_obj="",
+            collision_avoid_obj="",
+            collision_avoid_all=False,
+            collision_avoid_all_except=[],
+            mp_algo=[False, False, False, True],
+    ) -> Tuple[dict, dict, dict, dict]:
+        """
+        Parameters:
+        ----------
+        check_type : list, optional
+            A list of boolean values indicating the type of motion planning algorithm to use:
+            - [0]: Use screw motion planning with collision avoidance.
+            - [1]: Use screw motion planning without collision avoidance.
+            - [2]: Use sampling-based motion planning with collision avoidance.
+            - [3]: Use sampling-based motion planning without collision avoidance.
+        """
+        planner=self.setup_planner(
+            collision_avoid_attach_obj,
+            collision_avoid_obj,
+            collision_avoid_all,
+            collision_avoid_all_except,
+            )
+        
+        pose_list = list(target_pose.p)+list(target_pose.q)
+        
+        # CA stands for "collision avoidance"
+        screw_result_w_CA = planner.plan_screw(pose_list, self.robot.body.get_qpos(), time_step=self.task_scene.time_step, 
+                                    use_point_cloud=True, use_attach=True) \
+                                        if mp_algo[0] else {"status":None}
+        screw_result_wo_CA = planner.plan_screw(pose_list, self.robot.body.get_qpos(), time_step=self.task_scene.time_step, 
+                                    use_point_cloud=False, use_attach=False) \
+                                        if mp_algo[1] else {"status":None}
+        sampling_result_w_CA = planner.plan_qpos_to_pose(pose_list, self.robot.body.get_qpos(), time_step=self.task_scene.time_step,
+                                               use_point_cloud=True, use_attach=True) \
+                                        if mp_algo[2] else {"status":None}
+        sampling_result_wo_CA = planner.plan_qpos_to_pose(pose_list, self.robot.body.get_qpos(), time_step=self.task_scene.time_step,
+                                               use_point_cloud=False, use_attach=False) \
+                                        if mp_algo[3] else {"status":None}
+        
+        return screw_result_w_CA, screw_result_wo_CA, sampling_result_w_CA, sampling_result_wo_CA
+
+
+    def follow_path(
+            self, 
+            mp_result: dict,
+            n_render_step=4,
+    ) -> None:
+        active_joints = self.robot.body.get_active_joints()
+        n_step = mp_result['position'].shape[0]
+        n_driven_joints=mp_result['position'].shape[1]
+
+        for i in range(n_step):                     
+            qf = self.robot.body.compute_passive_force(
+                gravity=True, 
+                coriolis_and_centrifugal=True,
+                # external=False,
+            )
+            self.robot.body.set_qf(qf)
+            for j in range(n_driven_joints):
+                active_joints[j].set_drive_target(mp_result['position'][i][j])
+                active_joints[j].set_drive_velocity_target(mp_result['velocity'][i][j])
+            self.task_scene.step(render_step=i, n_render_step=n_render_step)
 
     
     def move_to_pose(    
             self,
-            pose: sapien.Pose,
+            target_pose: sapien.Pose,
             collision_avoid_attach_obj="",
             collision_avoid_obj="",
             collision_avoid_all=False,
@@ -129,25 +220,6 @@ class Move_Tool():
             speed_factor=1,
             n_render_step=4,
     ) -> int:
-        
-        def follow_path(result: dict) -> None:
-            active_joints = self.robot.robot_articulation.get_active_joints()
-            n_step = result['position'].shape[0]
-            n_driven_joints=result['position'].shape[1]
-
-            for i in range(n_step):                     
-                qf = self.robot.robot_articulation.compute_passive_force(
-                    gravity=True, 
-                    coriolis_and_centrifugal=True,
-                    # external=False,
-                )
-                self.robot.robot_articulation.set_qf(qf)
-                for j in range(n_driven_joints):
-                    active_joints[j].set_drive_target(result['position'][i][j])
-                    active_joints[j].set_drive_velocity_target(result['velocity'][i][j])
-                self.task_scene.step(render_step=i, n_render_step=n_render_step)
-        
-
         planner=self.setup_planner(
             collision_avoid_attach_obj,
             collision_avoid_obj,
@@ -156,15 +228,18 @@ class Move_Tool():
             speed_factor,
             )
         
-        pose_list = list(pose.p)+list(pose.q)
+        pose_list = list(target_pose.p)+list(target_pose.q)
+
         # Screw Algo
-        result = planner.plan_screw(pose_list, self.robot.robot_articulation.get_qpos(), time_step=self.task_scene.time_step, 
+        mp_result = planner.plan_screw(pose_list, self.robot.body.get_qpos(), time_step=self.task_scene.time_step, 
                                     use_point_cloud=~guarantee_screw_mp, use_attach=~guarantee_screw_mp)
-        if result['status'] != "Success":
+        if mp_result['status'] != "Success":
             # RTTConnect Algo
-            result = planner.plan_qpos_to_pose(pose_list, self.robot.robot_articulation.get_qpos(), time_step=self.task_scene.time_step,
+            mp_result = planner.plan_qpos_to_pose(pose_list, self.robot.body.get_qpos(), time_step=self.task_scene.time_step,
                                                use_point_cloud=True, use_attach=True)
-            if result['status'] != "Success":
+            if mp_result['status'] != "Success":
                 return -1
-        follow_path(result=result)
+            
+        self.follow_path(mp_result=mp_result, n_render_step=n_render_step)
+
         return 0

@@ -30,6 +30,7 @@ class SimplePickPlaceScene(TaskScene):
 
         self.subtask_dir = None
         self.step_index = 0
+        self.step_callback=lambda:None
 
         self.backward_camera = self._set_camera(
             name="backward_camera",
@@ -82,6 +83,7 @@ class SimplePickPlaceScene(TaskScene):
                 )
             ),
         )
+        # self.get_object_by_name("StorageFurniture45290").set_open_degree_by_name("StorageFurniture45290_handle_2", 0.5)
         load_object_mesh(
             self, 
             sapien.Pose(p=[0.45, -0.2, 0.104584], q=euler.euler2quat(0,0,np.pi/2)), 
@@ -92,7 +94,7 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.66, 0.2, 0.0866755], q=euler.euler2quat(np.pi/2, 0, -np.pi/2)), 
+            sapien.Pose(p=[0.66, 0.4, 0.0866755], q=euler.euler2quat(np.pi/2, 0, -np.pi/2)), 
             collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/035_power_drill/textured.obj'),
             visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/035_power_drill/textured.obj'),
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/035_power_drill/texture_map.png'),
@@ -259,13 +261,17 @@ class SimplePickPlaceScene(TaskScene):
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-a_lego_duplo/texture_map.png'),
             name='073-a_lego_duplo',
         )
-        self.catepult = load_articulation(
+        self.catapult = load_articulation(
             task_scene=self,
-            urdf_file_path=os.path.join(manipulate_root_path, "assets/object/catapult/catapult_catapult.urdf"),
+            urdf_file_path=os.path.join(manipulate_root_path, "assets/object/catapult/catapult.urdf"),
             scale=1,
             pose=sapien.Pose(p=[0.5,0.1,0.0130003]),
             name="catapult",
-        )
+        )     
+        # self.catapult.set_drive_target([-1,0])
+        # self.catapult.set_drive_velocity_target([-1,10])
+        # self.catapult.set_qpos([0,0])
+        self.catapult.set_qf(np.array([-1,10]))
 
     def _create_robot(self) -> None:
         self.first_person_camera = self._set_camera(
@@ -325,6 +331,9 @@ class SimplePickPlaceScene(TaskScene):
     def set_step_index(self, step_index:int):
         self.step_index=step_index
 
+    def set_step_callback(self, step_callback):
+        self.step_callback=step_callback
+
     def step(
             self, 
             render_step: int = 1, 
@@ -335,8 +344,9 @@ class SimplePickPlaceScene(TaskScene):
             leftward_record :bool = False,
             first_person_record :bool = False,
     ):
-        n_render_step = 1
+        n_render_step = 8
         self.scene.step()
+        self.step_callback()
 
         def _get_RGB(camera: CameraEntity, viewpoint: str):
             assert viewpoint in ["Backward", "Downward", "Rightward", "Leftward", "FirstPerson"], \
@@ -391,6 +401,7 @@ class SimplePickPlaceScene(TaskScene):
         while not self.viewer.closed:
             if step:
                 self.scene.step() 
+            # print(self.catapult.get_qlimits())
             # print(self.get_object_by_name("catapult").get_pose())
             self.scene.update_render()
             self.viewer.render()
@@ -398,15 +409,15 @@ class SimplePickPlaceScene(TaskScene):
 
 if __name__ == '__main__':
     demo=SimplePickPlaceScene()
-    demo.demo(step=False)
-    # demo.scene.step() 
-    # demo.scene.update_render()
+    # demo.demo(step=True)
+    demo.scene.step() 
+    demo.scene.update_render()
 
-    # demo.set_subtask_dir(os.path.join(dataset_path, "task_0001/subtask_001"))
-    # demo.set_step_index(0)
-    # # demo.primitives.Push("003_cracker_box",[0,-1],0.1)
-    # demo.primitives.DrawerOpen("StorageFurniture45290_handle_1")
-    # demo.primitives.DrawerClose("StorageFurniture45290_handle_1")
-    # demo.primitives.Pick("016_pear")
-    # demo.primitives.PlaceOn("StorageFurniture45290_drawer_1")
-    # demo.set_step_index(0)
+    demo.set_subtask_dir(os.path.join(dataset_path, "task_0001/subtask_001"))
+    demo.set_step_index(0)
+    # demo.primitives.Push("003_cracker_box",[0,-1],0.1)
+    demo.primitives.DrawerOpen("StorageFurniture45290_handle_1")
+    # demo.primitives.Pick("077_rubiks_cube")
+    # demo.primitives.PlaceOn("024_bowl")
+    demo.primitives.DrawerClose("StorageFurniture45290_handle_1")
+    demo.set_step_index(0)

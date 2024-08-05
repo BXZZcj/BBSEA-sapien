@@ -4,7 +4,10 @@ from sapien.core import RenderBody
 import numpy as np
 from typing import Union, List
 
-from perception.core import _dense_sample_convex_pcd, get_pcd_normals_from_obj, get_pcd_from_actor
+from perception.core import \
+    get_pcd_from_obj, \
+    get_pcd_normals_from_obj, \
+    _get_pcd_from_vis_body
 from scene.core import SpecifiedObject, TaskScene
 
 
@@ -14,29 +17,18 @@ class Drawer(SpecifiedObject):
         super().__init__()
 
         self.storage_furniture_body = storage_furniture_body
-        self.drawer_body = drawer_body
+        self.body = drawer_body
         if name!=None:
-            self.drawer_body.set_name(name)
+            self.body.set_name(name)
 
-    def get_name(self)->str:
-        return self.drawer_body.get_name()
-
-    def get_pose(self)->sapien.Pose:
-        return self.drawer_body.get_pose()
-
-    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray:   
-        return get_pcd_from_actor(self.drawer_body, dense_sample_convex)
-
-    def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
-        return get_pcd_normals_from_obj(self.drawer_body, dense_sample_convex)
 
     def get_handle(self, handle_name:str=None)->RenderBody:
         if ~handle_name:
             # We assume that in the urdf file, the handle visual body is indexed the last 
             # And we assume only the graspable part of a handle could be called "handle" 
-            return self.drawer_body.get_visual_bodies()[-1]
+            return self.body.get_visual_bodies()[-1]
         else:
-            for vis_body in self.drawer_body.get_visual_bodies():
+            for vis_body in self.body.get_visual_bodies():
                 if vis_body.get_name()==handle_name:
                     return vis_body
                 
@@ -47,10 +39,7 @@ class Drawer(SpecifiedObject):
             id_open_distance_hash[joint.get_child_link().id] = open_distance_list[0]
             open_distance_list.pop(0)
 
-        return id_open_distance_hash[self.drawer_body.id]
-    
-    def load_in(self, task_scene: TaskScene):
-        task_scene.object_list.append(self)
+        return id_open_distance_hash[self.body.id]
 
 
 
@@ -58,41 +47,32 @@ class StorageFurniture(SpecifiedObject):
     def __init__(self, storage_furniture_body: Articulation, name:str=None):
         super().__init__()
 
-        self.storage_furniture_body = storage_furniture_body
+        self.body = storage_furniture_body
         if name!=None:
-            self.storage_furniture_body.set_name(name)
+            self.body.set_name(name)
 
         self.handle_num=0
         self.handle_list: List[RenderBody]=[]
         self.handle_open_limits: List[float]=[]        
         self.drawer_list: List[Drawer]=[]
 
-        for index, drawer_joint in enumerate(self.storage_furniture_body.get_active_joints()):
+        for index, drawer_joint in enumerate(self.body.get_active_joints()):
             # We assume that in the urdf file, the handle visual body is indexed the last 
             # And we assume only the graspable part of a handle could be called "handle" 
             handle: RenderBody = drawer_joint.get_child_link().get_visual_bodies()[-1]
-            handle.set_name(f"{self.storage_furniture_body.get_name()}_handle_{index}")
+            handle.set_name(f"{self.body.get_name()}_handle_{index}")
             self.handle_num+=1
             self.handle_list.append(handle)
             self.handle_open_limits.append(drawer_joint.get_limits()[0][1])
 
             self.drawer_list.append(
                 Drawer(
-                    storage_furniture_body=self.storage_furniture_body, 
+                    storage_furniture_body=self.body, 
                     drawer_body=drawer_joint.get_child_link(), 
-                    name=f"{self.storage_furniture_body.get_name()}_drawer_{index}",
+                    name=f"{self.body.get_name()}_drawer_{index}",
                 )
             )
 
-
-    def get_name(self)->str: 
-        return self.storage_furniture_body.get_name()
-    
-
-    def get_pose(self)->sapien.Pose:
-        # Notice: the pose of StorageFurniture body may be different from the handle pose
-        return self.storage_furniture_body.get_pose()
-    
 
     def get_handle_by_name(self, handle_name: str)-> RenderBody:
         for handle in self.handle_list:
@@ -109,7 +89,7 @@ class StorageFurniture(SpecifiedObject):
     def get_handle_by_drawer(self, drawer: Drawer)->RenderBody:
         # We assume that in the urdf file, the handle visual body is indexed the last 
         # And we assume only the graspable part of a handle could be called "handle" 
-        return drawer.drawer_body.get_visual_bodies()[-1]            
+        return drawer.body.get_visual_bodies()[-1]            
 
     def get_handle_name_list(self)->List[str]:
         handle_name_list=[]
@@ -124,83 +104,21 @@ class StorageFurniture(SpecifiedObject):
             drawer_name_list.append(drawer.get_name())
         return drawer_name_list
             
-    
-    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray: 
-        # The storage furniture body pcd 
-        storage_furniture_body_pcd=[]
-        for link in self.storage_furniture_body.get_links():
-            # The drawer should be isolatedly considered, because we need to get their open degree, 
-            # and then get their real-time pointcloud, as they can be moving at any time.
-            if link.get_name() in self.get_drawer_name_list():
-                continue
-            for vis_body in link.get_collision_visual_bodies():
-                for render_shape in vis_body.get_render_shapes():
-                    vertices = render_shape.mesh.vertices
-                    if dense_sample_convex:
-                        vertices=_dense_sample_convex_pcd(vertices)
-                    storage_furniture_body_pcd+=vertices.tolist()
-        storage_furniture_body_pcd=np.array(storage_furniture_body_pcd)
-        # If the articulation.get_links()[1].get_visual_bodies() return [], just change the index 1 to other number
-        storage_furniture_body_pcd=storage_furniture_body_pcd * self.storage_furniture_body.get_links()[1].get_visual_bodies()[0].scale
-
-        tf_mat=self.storage_furniture_body.get_links()[1].get_pose().to_transformation_matrix()
-        storage_furniture_body_pcd_homo=np.concatenate((storage_furniture_body_pcd, np.ones((storage_furniture_body_pcd.shape[0],1))), axis=-1)
-        storage_furniture_body_pcd = (tf_mat@storage_furniture_body_pcd_homo.T).T[:,:-1]
-        
-        # The drawer pcd (including the handle) 
-        drawer_pcd=[]
-        for link in self.storage_furniture_body.get_links():
-            # The drawer should be isolatedly considered, because we need to get their open degree, 
-            # and then get their real-time pointcloud, as they can be moving at any time.
-            if link.get_name() in self.get_drawer_name_list():
-                drawer_pcd+=self.get_drawer_pcd_by_name(link.get_name(), dense_sample_convex).tolist()
-        drawer_pcd=np.array(drawer_pcd)
-
-        return np.concatenate((storage_furniture_body_pcd, drawer_pcd), axis=0)
-    
-
-    def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
-        return get_pcd_normals_from_obj(self.storage_furniture_body, dense_sample_convex)
-
-
+            
     def get_handle_pcd_by_name(self, handle_name: str, dense_sample_convex:bool=False)->np.ndarray:
-        handle : RenderBody = self.get_handle_by_name(handle_name)
+        handle_vis_body : RenderBody = self.get_handle_by_name(handle_name)
         
-        handle_pcd = handle.get_render_shapes()[0].mesh.vertices
-        handle_pcd = handle_pcd * handle.scale
-
-        # tf_mat = self.storage_furniture_body.get_pose().to_transformation_matrix()
-        handle_tf_mat = self.storage_furniture_body.get_active_joints()[0].get_parent_link().get_pose().to_transformation_matrix()
-        handle_pcd_homo = np.concatenate((handle_pcd, np.ones((handle_pcd.shape[0], 1))), axis=-1)
-        handle_pcd=(handle_tf_mat@handle_pcd_homo.T).T[:,:-1]
-
-        # We assume that the initial (when the urdf is loaded in) forward direction of the handle is [-1,0,0]
-        storage_furniture_tf_mat = self.storage_furniture_body.get_pose().to_transformation_matrix()
-        open_direction = (storage_furniture_tf_mat[:3,:3]@np.array([-1., 0., 0.]).T).T
-        open_direction = open_direction/np.linalg.norm(open_direction)
-
-        open_distance = self.get_open_distance_by_name(handle_name)
-        handle_pcd += open_distance * open_direction
-
-        if dense_sample_convex:
-            handle_pcd=_dense_sample_convex_pcd(handle_pcd)
-
-        return handle_pcd
+        drawer_link = self.get_drawer_by_name(handle_name.replace("handle", "drawer")).body
+        for vis_body_index, vis_body in enumerate(drawer_link.get_visual_bodies()):
+            if vis_body.get_visual_id() == handle_vis_body.get_visual_id():
+                handle_vis_body_index = vis_body_index
+                break
+        return _get_pcd_from_vis_body(drawer_link, handle_vis_body, handle_vis_body_index, dense_sample_convex)
     
 
     def get_drawer_pcd_by_name(self, drawer_name: str, dense_sample_convex:bool=False)->np.ndarray:
-        drawer_body : Link = self.get_drawer_by_name(drawer_name).drawer_body  
-        drawer_pcd = get_pcd_from_actor(drawer_body, dense_sample_convex)
-
-        # # We assume that the initial (when the urdf is loaded in) forward direction of the handle is [-1,0,0]
-        # storage_furniture_tf_mat = self.storage_furniture_body.get_pose().to_transformation_matrix()
-        # open_direction = (storage_furniture_tf_mat[:3,:3]@np.array([-1., 0., 0.]).T).T
-        # open_direction = open_direction/np.linalg.norm(open_direction)
-
-        # open_distance = self.get_open_distance_by_name(self.get_handle_by_drawer(drawer).get_name())
-        # drawer_pcd += open_distance * open_direction
-
-        return drawer_pcd
+        drawer_body : Link = self.get_drawer_by_name(drawer_name).body  
+        return get_pcd_from_obj(drawer_body, dense_sample_convex)
 
 
     def get_open_degree_by_name(self, handle_name:str)->float:
@@ -208,9 +126,9 @@ class StorageFurniture(SpecifiedObject):
     
 
     def get_open_distance_by_name(self, handle_name:str)->float:
-        open_distance_list = self.storage_furniture_body.get_qpos().tolist()
+        open_distance_list = self.body.get_qpos().tolist()
         id_open_distance_hash={}
-        for joint in self.storage_furniture_body.get_active_joints():
+        for joint in self.body.get_active_joints():
             id_open_distance_hash[joint.get_child_link().id] = open_distance_list[0]
             open_distance_list.pop(0)
 
@@ -230,9 +148,10 @@ class StorageFurniture(SpecifiedObject):
 
         handle_index = int(handle_name.split("_")[-1])
         open_limit = self.get_open_limit_by_name(handle_name)
-        new_qpos = self.storage_furniture_body.get_qpos().tolist()        
+        new_qpos = self.body.get_qpos().tolist()        
         new_qpos[handle_index] = open_limit * degree 
-        self.storage_furniture_body.set_qpos(new_qpos)
+        self.body.set_qpos(new_qpos)
+
 
     def load_in(self, task_scene:TaskScene):
         task_scene.object_list.append(self)
@@ -259,7 +178,7 @@ class Robot(SpecifiedObject):
         # The robot_articulation may be different from the robot articulation loaded from the urdf file
         # Because the robot articulation may have been mounted with some camera entities, 
         # the camera entities are "links", but the robot articulation loaded from the urdf file doesn't contain them
-        self.robot_articulation=robot_articulation
+        self.body=robot_articulation
         self.urdf_file_path=urdf_file_path
         self.srdf_file_path=srdf_file_path
         self.move_group=move_group
@@ -271,10 +190,7 @@ class Robot(SpecifiedObject):
         self.origin_link_names, self.origin_joint_names = self._get_origin_link_joint()
         
         if name!=None:
-            self.robot_articulation.set_name(name)
-        
-    def get_name(self):
-        return self.robot_articulation.get_name()
+            self.body.set_name(name)
 
     def _get_origin_link_joint(self):
         robot_loader = self.task_scene.scene.create_urdf_loader()
@@ -307,3 +223,46 @@ class Robot(SpecifiedObject):
     
     def load_in(self, task_scene: TaskScene):
         task_scene.robot_list.append(self)
+
+
+
+class Catapult(SpecifiedObject):
+    def __init__(
+            self, 
+            catapult_body: Articulation, 
+            catapult_name:str,
+            button_name:str="button",
+            initial_qf:np.ndarray=None
+    ):
+        self.body=catapult_body
+
+        if catapult_name!=None:
+            self.body.set_name(catapult_name)
+
+        self.button_name = button_name
+        for joint in self.body.get_active_joints():
+            if joint.get_child_link().get_name()==self.button_name:
+                # We assume the dof of button is only 1, so the index can be fixed 0.
+                self.button_joint = joint
+        
+        
+        self.initial_qf=initial_qf
+        if self.initial_qf!=None:
+            self.body.set_qf(self.initial_qf)
+
+    def get_button_pcd(self)->np.ndarray:
+        for link in self.body.get_links():
+            if link.get_name()==self.button_name:
+                return get_pcd_from_obj(link)
+        
+    def get_button_press_limit(self)->float:
+        button_joint_limit = self.button_joint.get_limits()
+        return button_joint_limit.max()-button_joint_limit.min()
+
+
+    def check_activate(self):
+        for joint_index, joint in enumerate(self.body.get_active_joints()):
+            if joint.get_name()==self.button_joint.get_name():
+                button_joint_index=joint_index
+        button_press_distance = self.body.get_qpos()[button_joint_index]
+        return np.isclose(button_press_distance, 0, atol=1e-3)
