@@ -12,7 +12,7 @@ from scene.core import SpecifiedObject, TaskScene
 
 
 
-class Drawer(SpecifiedObject):
+class StorageFurnitureDrawer(SpecifiedObject):
     def __init__(self, storage_furniture_body: Articulation, drawer_body: Link, name:str=None):
         super().__init__()
 
@@ -54,7 +54,7 @@ class StorageFurniture(SpecifiedObject):
         self.handle_num=0
         self.handle_list: List[RenderBody]=[]
         self.handle_open_limits: List[float]=[]        
-        self.drawer_list: List[Drawer]=[]
+        self.drawer_list: List[StorageFurnitureDrawer]=[]
 
         for index, drawer_joint in enumerate(self.body.get_active_joints()):
             # We assume that in the urdf file, the handle visual body is indexed the last 
@@ -66,7 +66,7 @@ class StorageFurniture(SpecifiedObject):
             self.handle_open_limits.append(drawer_joint.get_limits()[0][1])
 
             self.drawer_list.append(
-                Drawer(
+                StorageFurnitureDrawer(
                     storage_furniture_body=self.body, 
                     drawer_body=drawer_joint.get_child_link(), 
                     name=f"{self.body.get_name()}_drawer_{index}",
@@ -80,13 +80,13 @@ class StorageFurniture(SpecifiedObject):
                 return handle
         return None
             
-    def get_drawer_by_name(self, drawer_name: str)->Drawer:
+    def get_drawer_by_name(self, drawer_name: str)->StorageFurnitureDrawer:
         for drawer in self.drawer_list:
             if drawer.get_name()==drawer_name:
                 return drawer
         return None
     
-    def get_handle_by_drawer(self, drawer: Drawer)->RenderBody:
+    def get_handle_by_drawer(self, drawer: StorageFurnitureDrawer)->RenderBody:
         # We assume that in the urdf file, the handle visual body is indexed the last 
         # And we assume only the graspable part of a handle could be called "handle" 
         return drawer.body.get_visual_bodies()[-1]            
@@ -226,12 +226,60 @@ class Robot(SpecifiedObject):
 
 
 
-class Catapult(SpecifiedObject):
+class CatapultArm(SpecifiedObject):
     def __init__(
             self, 
+            catapult_body: Articulation,
+            catapult_arm_body: Link,
+            catapult_arm_name: str=None,
+    ):
+        self.catapult_body=catapult_body
+        self.body=catapult_arm_body
+        
+        if catapult_arm_name != None:
+            self.body.set_name(catapult_arm_name)
+
+
+
+class CatapultButton(SpecifiedObject):
+    def __init__(
+            self,
+            catapult_body: Articulation,
+            button_body: Link,
+            button_name:str = None,
+    ):
+        self.catapult_body = catapult_body
+        self.body = button_body
+
+        if button_name != None:
+            self.body.set_name(button_name)
+
+        assert self.body.get_name()!=None, "The button name must be set."
+
+        for joint in self.catapult_body.get_active_joints():
+            if joint.get_child_link().get_name()==self.body.get_name():
+                self.button_joint = joint
+                break
+
+
+    def get_press_limit(self)->float:
+        button_joint_limit = self.button_joint.get_limits()
+        return button_joint_limit.max()-button_joint_limit.min()
+
+
+    def get_press_distance(self)->float:
+        for joint_index, joint in enumerate(self.catapult_body.get_active_joints()):
+            if joint.get_name()==self.button_joint.get_name():
+                button_joint_index=joint_index
+        return self.catapult_body.get_qpos()[button_joint_index]
+
+
+
+class Catapult(SpecifiedObject):
+    def __init__(
+            self,
             catapult_body: Articulation, 
-            catapult_name:str,
-            button_name:str="button",
+            catapult_name:str=None,
             initial_qf:np.ndarray=None
     ):
         self.body=catapult_body
@@ -239,30 +287,46 @@ class Catapult(SpecifiedObject):
         if catapult_name!=None:
             self.body.set_name(catapult_name)
 
-        self.button_name = button_name
-        for joint in self.body.get_active_joints():
-            if joint.get_child_link().get_name()==self.button_name:
+        assert self.body.get_name()!=None, "The catapult name must be set."
+
+        for link in self.body.get_links():
+            if link.get_name() == "catapult_arm":
+                link.set_name(self.body.get_name()+"_arm")
+                self.catapult_arm = CatapultArm(self.body, link, self.body.get_name()+"_arm")
+            if link.get_name() == "button":
+                link.set_name(self.body.get_name()+"_button")
+                self.button = CatapultButton(self.body, link, self.body.get_name()+"_button")
+        
+        for joint_index, joint in enumerate(self.body.get_active_joints()):
+            if joint.get_child_link().get_name()=="catapult_arm":
+                # We assume the dof of button is only 1, so the index can be fixed 0.
+                self.catapult_arm_joint = joint
+                self.catapult_arm_joint_index = joint_index
+            if joint.get_child_link().get_name()=="button":
                 # We assume the dof of button is only 1, so the index can be fixed 0.
                 self.button_joint = joint
-        
+                self.button_joint_index = joint_index
         
         self.initial_qf=initial_qf
-        if self.initial_qf!=None:
+        if self.initial_qf is not None:
             self.body.set_qf(self.initial_qf)
-
-    def get_button_pcd(self)->np.ndarray:
-        for link in self.body.get_links():
-            if link.get_name()==self.button_name:
-                return get_pcd_from_obj(link)
-        
-    def get_button_press_limit(self)->float:
-        button_joint_limit = self.button_joint.get_limits()
-        return button_joint_limit.max()-button_joint_limit.min()
 
 
     def check_activate(self):
-        for joint_index, joint in enumerate(self.body.get_active_joints()):
-            if joint.get_name()==self.button_joint.get_name():
-                button_joint_index=joint_index
-        button_press_distance = self.body.get_qpos()[button_joint_index]
-        return np.isclose(button_press_distance, 0, atol=1e-3)
+        return np.isclose(self.button.get_press_limit()-self.button.get_press_distance(), 0, atol=1e-3)
+    
+
+    def activate_behavior(self):
+        current_qf = self.body.get_qf()
+        current_qf[self.catapult_arm_joint_index] = 20
+        self.body.set_qf(current_qf)
+
+    
+    def reset(self):
+        self.body.set_qf(self.initial_qf)
+
+    
+    def load_in(self, task_scene: TaskScene):
+        task_scene.object_list.append(self)
+        task_scene.object_list.append(self.catapult_arm)
+        task_scene.object_list.append(self.button)

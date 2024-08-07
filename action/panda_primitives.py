@@ -130,9 +130,12 @@ class PandaPrimitives:
         self._move_to_pose(disturbation, distinguish_gripper_movegroup=False)
 
         for joint in self.robot.body.get_active_joints()[-2:]:
-            # joint.set_friction(10)
-            # joint.set_drive_property(stiffness=100, damping=100, force_limit=10)
             joint.set_drive_target(0)
+        # Make the grasping more stable.
+        target_qf = self.robot.body.get_qf()
+        target_qf[-2:]=[20,20]
+        self.robot.body.set_qf(target_qf)
+
         last_gripper_qpos=None
         for i in range(150):  
             qf = self.robot.body.compute_passive_force(
@@ -176,10 +179,11 @@ class PandaPrimitives:
             _tmp_projections = np.dot(obj_pcd, direction)
             obj_direction_range = _tmp_projections.max() - _tmp_projections.min()
 
-            _right = np.cross(np.array([0,0,1]), direction)
-            _up = np.cross(direction, _right)
-            _tmp_projections = np.dot(obj_pcd, _up)
-            obj_zaxis_range = _tmp_projections.max() - _tmp_projections.min()
+            # _right = np.cross(np.array([0,0,1]), direction)
+            # _up = np.cross(direction, _right)
+            # _tmp_projections = np.dot(obj_pcd, _up)
+            # obj_zaxis_range = _tmp_projections.max() - _tmp_projections.min()bj
+            obj_height = obj_pcd[:,2].max()-obj_pcd[:,2].min()
 
             # Make the gripper pushing plane parellel with the object pushed plane
             # Especially when there is a camera mounted on the end effector
@@ -192,10 +196,10 @@ class PandaPrimitives:
             # The z value should be a little bigger than 0 (z value of the table top), 
             # or the collision avoidance equation will never be solved,
             # because the gripper will always contact with the table top  
-            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+obj_zaxis_range/3]) - direction * (obj_direction_range/2+np.random.uniform(0.08, 0.15)))
+            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+obj_height/4]) - direction * (obj_direction_range/2+np.random.uniform(0.08, 0.15)))
             pose_pre_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
-            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+obj_zaxis_range/3]) + direction * distance)
+            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+obj_height/4]) + direction * distance)
             pose_post_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
             return pose_pre_push, pose_post_push
@@ -223,7 +227,7 @@ class PandaPrimitives:
         self._open_gripper()
 
         if self._move_to_pose(push_pose_path[0], collision_avoid_all=True)==-1:
-            raise Exception()
+            # raise Exception()
             print("Collision Avoidance Computation Fails.")
             if self._move_to_pose(push_pose_path[0])==-1:
                 print("Inverse Kinematics Computation Fails.")
@@ -232,7 +236,7 @@ class PandaPrimitives:
         self._close_gripper()
 
         for push_pose in push_pose_path[1:]:
-            if self._move_to_pose(push_pose, guarantee_screw_mp=True, speed_factor=0.1)==-1:
+            if self._move_to_pose(push_pose, guarantee_screw_mp=True, speed_factor=1)==-1:
                 print("Inverse Kinematics Computation Fails.")
                 return -1
         
@@ -778,10 +782,10 @@ class PandaPrimitives:
             # The z value should be a little bigger than 0 (z value of the table top), 
             # or the collision avoidance equation will never be solved,
             # because the gripper will always contact with the table top  
-            pose_pre_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2]]) - direction * (obj_direction_range/2+np.random.uniform(0.08, 0.15)))
+            pose_pre_push.set_p(obj_center - direction * (obj_direction_range/2+np.random.uniform(0.08, 0.15)))
             pose_pre_push.set_q(gripper_quant)
 
-            pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2]]) + direction * distance)
+            pose_post_push.set_p(obj_center - direction * obj_direction_range/2 + direction * distance)
             pose_post_push.set_q(gripper_quant)
 
             return pose_pre_push, pose_post_push
@@ -799,7 +803,7 @@ class PandaPrimitives:
             
         self._close_gripper()
 
-        if self._move_to_pose(pose_press, guarantee_screw_mp=True, speed_factor=0.1)==-1:
+        if self._move_to_pose(pose_press, guarantee_screw_mp=True, speed_factor=1)==-1:
             print("Inverse Kinematics Computation Fails.")
             return -1
         

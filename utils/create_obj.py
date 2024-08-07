@@ -156,28 +156,29 @@ def load_object_mesh(
         load_in = True,
 ) -> sapien.Actor:
     if texture_file_path:
-        material = task_scene.renderer.create_material()
-        material.base_color = [1.0, 1.0, 1.0, 1.0]
-        material.diffuse_texture_filename = texture_file_path
-        material.metallic = 0.001
-        material.roughness = 0.4
+        render_material = task_scene.renderer.create_material()
+        render_material.base_color = [1.0, 1.0, 1.0, 1.0]
+        render_material.diffuse_texture_filename = texture_file_path
+        render_material.metallic = 0.001
+        render_material.roughness = 0.4
     else:
-        material = None
+        render_material = None
 
     builder = task_scene.scene.create_actor_builder()
+    physical_material = task_scene.scene.create_physical_material(static_friction=1, dynamic_friction=1, restitution=0.5)
     # Any collision shape in SAPIEN is required to be convex. 
     # To this end, a mesh will be “cooked” into a convex mesh before being used in the simulation.
     # HOWEVER， you can still add a nonconvex collision shape from a file. 
     # If it is not a trigger, then it is only valid for static and kinematic actors.
     if is_kinematic:
-        builder.add_nonconvex_collision_from_file(filename=collision_file_path, scale=scale)
-        builder.add_visual_from_file(filename=visual_file_path, scale=scale, material=material)
+        builder.add_nonconvex_collision_from_file(filename=collision_file_path, scale=scale, material=physical_material)
+        builder.add_visual_from_file(filename=visual_file_path, scale=scale, material=render_material)
 
         mesh = builder.build_kinematic(name=name)
         mesh.set_pose(pose)
     else:
-        builder.add_multiple_collisions_from_file(filename=collision_file_path, scale=scale)
-        builder.add_visual_from_file(filename=visual_file_path, scale=scale, material=material)
+        builder.add_multiple_collisions_from_file(filename=collision_file_path, scale=scale, material=physical_material)
+        builder.add_visual_from_file(filename=visual_file_path, scale=scale, material=render_material)
 
         mesh = builder.build(name=name)
         mesh.set_pose(pose)

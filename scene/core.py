@@ -64,6 +64,10 @@ class TaskScene():
         self._create_robot()
 
         self.primitives = None
+    
+        # Formally initialize the environment
+        self.scene.step() 
+        self.scene.update_render()
 
 
     def get_robot_list(self):

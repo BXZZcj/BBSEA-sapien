@@ -14,7 +14,7 @@ from config import manipulate_root_path, dataset_path
 from perception import get_pcd_from_actor, get_pcd_from_obj
 from perception.scene_graph import SceneGraph, Node
 from scene.core import TaskScene
-from scene.specified_object import StorageFurniture
+from scene.specified_object import StorageFurniture, Catapult
 from utils import load_articulation
 
 
@@ -82,8 +82,25 @@ class SimplePickPlaceScene(TaskScene):
                     load_in=False
                 )
             ),
+            load_in=True,
         )
         # self.get_object_by_name("StorageFurniture45290").set_open_degree_by_name("StorageFurniture45290_handle_2", 0.5)
+        load_specified_object(
+            self,
+            Catapult(
+                load_articulation(
+                    task_scene=self,
+                    urdf_file_path=os.path.join(manipulate_root_path, "assets/object/catapult/catapult.urdf"),
+                    scale=1,
+                    pose=sapien.Pose(p=[0.5,0.1,0.0130003]),
+                    name="catapult",
+                    load_in=False,
+                ),
+                initial_qf=np.array([-1,0])
+            ),
+            load_in=True,
+        )
+
         load_object_mesh(
             self, 
             sapien.Pose(p=[0.45, -0.2, 0.104584], q=euler.euler2quat(0,0,np.pi/2)), 
@@ -261,17 +278,7 @@ class SimplePickPlaceScene(TaskScene):
             texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-a_lego_duplo/texture_map.png'),
             name='073-a_lego_duplo',
         )
-        self.catapult = load_articulation(
-            task_scene=self,
-            urdf_file_path=os.path.join(manipulate_root_path, "assets/object/catapult/catapult.urdf"),
-            scale=1,
-            pose=sapien.Pose(p=[0.5,0.1,0.0130003]),
-            name="catapult",
-        )     
-        # self.catapult.set_drive_target([-1,0])
-        # self.catapult.set_drive_velocity_target([-1,10])
-        # self.catapult.set_qpos([0,0])
-        self.catapult.set_qf(np.array([-1,10]))
+        
 
     def _create_robot(self) -> None:
         self.first_person_camera = self._set_camera(
@@ -410,14 +417,21 @@ class SimplePickPlaceScene(TaskScene):
 if __name__ == '__main__':
     demo=SimplePickPlaceScene()
     # demo.demo(step=True)
-    demo.scene.step() 
-    demo.scene.update_render()
 
     demo.set_subtask_dir(os.path.join(dataset_path, "task_0001/subtask_001"))
     demo.set_step_index(0)
     # demo.primitives.Push("003_cracker_box",[0,-1],0.1)
-    demo.primitives.DrawerOpen("StorageFurniture45290_handle_1")
-    # demo.primitives.Pick("077_rubiks_cube")
+    demo.primitives.Pick("077_rubiks_cube")
+    demo.primitives.PlaceOn("catapult_arm")
+    def step_callback():
+        if demo.get_object_by_name("catapult").check_activate():
+            demo.get_object_by_name("catapult").activate_behavior()
+            # demo.get_object_by_name("catapult").reset()
+    demo.set_step_callback(step_callback)
+    demo.primitives.Press("catapult_button")
+    # demo.primitives.Press("catapult_arm")
+    # demo.primitives._move_to_pose(gripper_pose=sapien.Pose(p=np.array([])))
+    # demo.primitives.DrawerOpen("StorageFurniture45290_handle_1")
     # demo.primitives.PlaceOn("024_bowl")
-    demo.primitives.DrawerClose("StorageFurniture45290_handle_1")
+    # demo.primitives.DrawerClose("StorageFurniture45290_handle_1")
     demo.set_step_index(0)
