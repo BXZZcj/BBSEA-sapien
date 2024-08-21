@@ -183,13 +183,14 @@ class SceneGraph(object):
         box_A, box_B = node.corner_pts, new_node.corner_pts
         pos_A, pos_B = node.pos, new_node.pos
 
+        # INSIDE
+        if is_inside(src_pts=box_B_pts, target_pts=box_A_pts, thresh=INSIDE_THRESH):
+            self.edges[(new_node.get_full_name(), node.get_full_name())] = Edge(new_node, node, "inside")
+        elif is_inside(src_pts=box_A_pts, target_pts=box_B_pts, thresh=INSIDE_THRESH):
+            self.edges[(node.get_full_name(), new_node.get_full_name())] = Edge(node, new_node, "inside")
         # IN CONTACT
-        if dist < IN_CONTACT_DISTANCE:
-            if is_inside(src_pts=box_B_pts, target_pts=box_A_pts, thresh=INSIDE_THRESH):
-                self.edges[(new_node.get_full_name(), node.get_full_name())] = Edge(new_node, node, "inside")
-            elif is_inside(src_pts=box_A_pts, target_pts=box_B_pts, thresh=INSIDE_THRESH):
-                self.edges[(node.get_full_name(), new_node.get_full_name())] = Edge(node, new_node, "inside")
-            elif is_on_top_of(src_pos=pos_B, target_box=box_A):
+        elif dist < IN_CONTACT_DISTANCE:
+            if is_on_top_of(src_pos=pos_B, target_box=box_A):
                 self.edges[(new_node.get_full_name(), node.get_full_name())] = Edge(new_node, node, "on top of")
             elif is_on_top_of(src_pos=pos_A, target_box=box_B):
                 self.edges[(node.get_full_name(), new_node.get_full_name())] = Edge(node, new_node, "on top of")

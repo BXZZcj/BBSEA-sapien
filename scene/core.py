@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 class SpecifiedObject:
     def __init__(self):
         self.body: Union[Articulation, Link, Actor]=None
+        self.parent: 'SpecifiedObject' = None
         pass
 
     def get_name(self)->str:
@@ -20,14 +21,17 @@ class SpecifiedObject:
 
     def get_pose(self)->sapien.Pose:
         return self.body.get_pose()
+    
+    def get_parent(self)->'SpecifiedObject':
+        return self.parent
 
-    def get_pcd(self, dense_sample_convex:bool=False)->np.ndarray:   
+    def get_pcd(self)->np.ndarray:   
         from perception.core import get_pcd_from_obj
-        return get_pcd_from_obj(self.body, dense_sample_convex)
+        return get_pcd_from_obj(self.body)
 
-    def get_pcd_normals(self, dense_sample_convex:bool=False)->np.ndarray:
+    def get_pcd_normals(self)->np.ndarray:
         from perception.core import get_pcd_normals_from_obj
-        return get_pcd_normals_from_obj(self.body, dense_sample_convex)
+        return get_pcd_normals_from_obj(self.body)
 
     def load_in(self, task_scene:'TaskScene'):
         task_scene.object_list.append(self)

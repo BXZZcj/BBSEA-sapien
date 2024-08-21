@@ -1,27 +1,62 @@
 import os
 import re
-from openai import OpenAI
-from config.core import prompts_path, gpt_api_key, gpt_base_url
+from openai import OpenAI, AzureOpenAI
+from typing import Tuple, List, Union
+
+from config.core import prompts_path,\
+    chatanywhere_api_key,\
+    chatanywhere_base_url,\
+    azure_api_key,\
+    azure_endpoint,\
+    azure_api_version
 
 
-client = OpenAI(
-    api_key=gpt_api_key,
-    base_url=gpt_base_url
-)
+def gpt_api(
+        messages: list, 
+        temperature: float, 
+        model:str="vision", 
+        max_tokens:int=1000
+)->str:
+    if model == "vision":
+        client = AzureOpenAI(
+            api_key=azure_api_key,
+            api_version=azure_api_version,
+            azure_endpoint=azure_endpoint,
+        )
+    else:
+        client = OpenAI(
+            api_key=chatanywhere_api_key,
+            base_url=chatanywhere_base_url,
+        )
 
-
-def gpt_35_api(messages: list, temperature):
-    completion = client.chat.completions.create(model="gpt-4", messages=messages, temperature=temperature)
+    completion = client.chat.completions.create(
+        model=model, 
+        messages=messages, 
+        temperature=temperature, 
+        max_tokens=max_tokens,
+        )
+    
     return completion.choices[0].message.content
 
 
-def propose_task(scene_graph, temperature=0.2):
+def propose_task(
+        scene_graph:str, 
+        model:str, 
+        temperature:float=0.2
+)->list:
     with open(prompts_path["task_propose"], 'r', encoding='utf-8') as f:
         base_prompt = f.read()
 
     prompt = base_prompt.format(scene_graph)
-    messages = [{'role': 'user','content': prompt},]
-    response = gpt_35_api(messages, temperature)
+    messages = [
+        {
+            'role': 'user',
+            'content': [
+                {"type":"text", "text": prompt},
+            ]
+        },
+    ]
+    response = gpt_api(messages, temperature, model=model)
 
     tasks = response.split("\ntasks:\n")[-1].split("\n")  # str list
     task_desc_list = []
@@ -36,31 +71,32 @@ def propose_task(scene_graph, temperature=0.2):
                 task_desc_list.append(task.split('. ')[1].strip('.'))
             except:
                 task_desc_list.append(task.split(': ')[1].strip('.'))
-                print(tasks)
-                print(task)
 
     return task_desc_list
 
 
-def decompose_task(task_desc, scene_graph, temperature=0.2):
+def decompose_task(
+        task_desc:str, 
+        scene_graph:str, 
+        model:str, 
+        temperature:float=0.2
+)->Tuple[List[str], List[str], str]:
     with open(prompts_path["task_decompose"], 'r', encoding='utf-8') as f:
         base_prompt = f.read()
     prompt = base_prompt.format(task_desc, scene_graph)
 
     messages = [{'role': 'user','content': prompt},]
-    response = gpt_35_api(messages, temperature)
+    response = gpt_api(messages, temperature, model=model)
 
     subtask_list = []
-    primitive_action_list = []
     primitive_action_str_list = []
     reasoning = response.split("\nanswer:\n")[0]
     
     if ' no.' in response:
-        return subtask_list, primitive_action_str_list, primitive_action_list, reasoning
-    steps = response.split("\nanswer:\n")[-1].split("\n")  # str list
-    for step in steps:
-        primitive_actions = []
-        subtask = ''
+        return subtask_list, primitive_action_str_list, reasoning
+    subtasks = response.split("\nanswer:\n")[-1].split("\n")  # str list
+    for step in subtasks:
+        subtask=""
         try:
             subtask = step.split('|')[0].split('.')[1]
             action = step.split('|')[1]
@@ -69,40 +105,35 @@ def decompose_task(task_desc, scene_graph, temperature=0.2):
             if match:
                 primitive_action_str = match.group(1)
                 primitive_action_str_list.append(primitive_action_str)
-                
-                for item in primitive_action_str.split(';'):
-                    obj = eval(item) 
-                    primitive_actions.append(obj)
             else:
                 # import pdb;pdb.set_trace()
-                return subtask_list, primitive_action_str_list, primitive_action_list, reasoning
+                return subtask_list, primitive_action_str_list, reasoning
         except:
             try:
                 subtask = step.split(':')[0].split('.')[1]
                 action = step.split(':')[1]
-                # match = re.search(r'\[(.*)\]', step)
 
                 match = re.search(r'\[(.*)\]', action)
                 if match:
                     primitive_action_str = match.group(1)
                     primitive_action_str_list.append(primitive_action_str)
-
-                    for item in primitive_action_str.split(';'):
-                        obj = eval(item) 
-                        primitive_actions.append(obj)
                 else:
                     # import pdb;pdb.set_trace()
-                    return subtask_list, primitive_action_str_list, primitive_action_list, reasoning
+                    return subtask_list, primitive_action_str_list, reasoning
             except:
-                print("step", step)
+                raise 
             # import pdb;pdb.set_trace()
         subtask_list.append(subtask)
-        primitive_action_list.append(primitive_actions)
     # is_first_time = False
-    return subtask_list, primitive_action_str_list, primitive_action_list, reasoning
+    return subtask_list, primitive_action_str_list, reasoning
 
 
-def infer_if_success(task_desc, scene_graph_list, temperature=0.2):
+def infer_if_success(
+        task_desc:str, 
+        scene_graph_list:List[str], 
+        model:str, 
+        temperature:float=0.2
+)->Tuple[Union[bool, str], str]:
     scene_graph_list_str = ''
     for scene_graph in scene_graph_list:
         scene_graph_list_str += f'  ----------\n{scene_graph}'
@@ -112,16 +143,17 @@ def infer_if_success(task_desc, scene_graph_list, temperature=0.2):
     prompt = base_prompt.format(task_desc, scene_graph_list_str)
 
     messages = [{'role': 'user','content': prompt},]
-    response = gpt_35_api(messages, temperature)
+    response = gpt_api(messages, temperature, model=model)
 
-    answer = response.split('answers:\n')[-1]
+    is_suc = response.split('answer:\n')[-1]
+    suc_info = response.split('answer:\n')[0]
 
-    if 'yes' in answer:
-        return True, response
-    elif 'no' in answer:
-        return False, response
+    if 'yes' in is_suc:
+        return True, suc_info
+    elif 'no' in is_suc:
+        return False, suc_info
     else:
-        return 'not sure', response
+        return 'not sure', suc_info
 
 
 if __name__ == '__main__':
@@ -133,7 +165,7 @@ if __name__ == '__main__':
   [Edges]:
     - red block -> on top of -> table
     - green bowl -> on top of -> table'''
-    task_list = propose_task(scene_graph)
+    task_list = propose_task(scene_graph=scene_graph, model="vision")
     print("Task Proposal\n  task_list:\n\n", task_list)
 
     # Task Decompose
@@ -145,7 +177,7 @@ if __name__ == '__main__':
   [Edges]:
     - red block -> on top of -> table
     - green bowl -> on top of -> table'''
-    subtask_list, primitive_action_str_list, primitive_action_list, reasoning = decompose_task(task_desc, scene_graph)
+    subtask_list, primitive_action_str_list, reasoning = decompose_task(task_desc=task_desc, scene_graph=scene_graph, model="vision")
     print("Task Decompose")
     # print("  reasoning:\n\n", reasoning)
     # print("\n  subtask_list:\n\n", subtask_list)
@@ -158,5 +190,5 @@ if __name__ == '__main__':
     - green bowl
     - table
   [Edges]:'''
-    is_successful = infer_if_success(task_desc, scene_graph)
+    is_successful = infer_if_success(task_desc=task_desc, scene_graph_list=[scene_graph],model="vision")
     print("Success Infer\n  is_successful:\n\n", is_successful)

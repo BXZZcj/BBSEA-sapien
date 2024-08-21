@@ -23,7 +23,7 @@ response = client.chat.completions.create(
       ],
     }
   ],
-  max_tokens=300,
+  max_tokens=3000,
 )
 
 print(response.choices[0])

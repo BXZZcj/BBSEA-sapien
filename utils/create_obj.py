@@ -205,8 +205,8 @@ def load_articulation(
     model.set_pose(pose=pose)
     model.set_name(name=name)
 
-    # for joint in model.get_active_joints():
-    #     joint.set_drive_property(stiffness=0, damping=20)
+    for joint in model.get_active_joints():
+        joint.set_drive_property(stiffness=0, damping=20)
 
     if load_in:
         task_scene.object_list.append(model)

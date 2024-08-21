@@ -9,7 +9,7 @@ from transforms3d.affines import decompose44
 from transforms3d.quaternions import mat2quat
 from typing import Tuple
 
-from perception import get_pcd_from_actor, get_actor_by_name, get_pcd_from_obj
+from perception import get_scene_pcd, get_pcd_from_obj
 from scene.core import TaskScene
 from scene.specified_object import Robot
 
@@ -74,18 +74,15 @@ class Move_Tool():
                         vis_record.filename, 
                         np.concatenate([T, mat2quat(R)]),
                     )
+
         
         if collision_avoid_all or collision_avoid_all_except or collision_avoid_attach_obj:
-            combined_pcd=np.array([]).reshape(0, 3)
-            for obj in self.task_scene.object_list:
-                if obj.get_name() not in collision_avoid_all_except and obj.get_name()!=collision_avoid_attach_obj:
-                    pcd = get_pcd_from_obj(obj, dense_sample_convex=True)
-                    combined_pcd = np.concatenate((combined_pcd, pcd), axis=0)
+            scene_pcd = get_scene_pcd(self.task_scene, collision_avoid_all_except+[collision_avoid_attach_obj])
             
             # from utils.visualization import visualize_pcd
-            # visualize_pcd(combined_pcd)
+            # visualize_pcd(scene_pcd)
 
-            planner.update_point_cloud(combined_pcd)
+            planner.update_point_cloud(scene_pcd)
 
             if collision_avoid_attach_obj:
                 obj=self.task_scene.get_object_by_name(collision_avoid_attach_obj)
@@ -98,7 +95,7 @@ class Move_Tool():
                 _updare_planner_attach_actor(planner, mounted_obj, actor_builder)
 
         if collision_avoid_obj:
-            pcd = get_pcd_from_obj(self.task_scene.get_object_by_name(collision_avoid_obj), dense_sample_convex=True)
+            pcd = get_pcd_from_obj(self.task_scene.get_object_by_name(collision_avoid_obj))
             planner.update_point_cloud(pcd)
         
         return planner
@@ -196,12 +193,11 @@ class Move_Tool():
         n_step = mp_result['position'].shape[0]
         n_driven_joints=mp_result['position'].shape[1]
 
-        for i in range(n_step):                     
-            qf = self.robot.body.compute_passive_force(
-                gravity=True, 
-                coriolis_and_centrifugal=True,
-                # external=False,
-            )
+        if n_step > 1000:
+            raise Exception("The motion path is too long. That's usual, probably, the arm will tic, or make a circle.")
+
+        for i in range(n_step):
+            qf = self.robot.body.compute_passive_force()
             self.robot.body.set_qf(qf)
             for j in range(n_driven_joints):
                 active_joints[j].set_drive_target(mp_result['position'][i][j])

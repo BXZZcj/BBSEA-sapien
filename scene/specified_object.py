@@ -13,13 +13,21 @@ from scene.core import SpecifiedObject, TaskScene
 
 
 class StorageFurnitureDrawer(SpecifiedObject):
-    def __init__(self, storage_furniture_body: Articulation, drawer_body: Link, name:str=None):
+    def __init__(
+            self, 
+            storage_furniture_body: Articulation, 
+            drawer_body: Link, 
+            name:str=None,
+            parent: SpecifiedObject = None,
+    ):
         super().__init__()
 
         self.storage_furniture_body = storage_furniture_body
         self.body = drawer_body
         if name!=None:
             self.body.set_name(name)
+
+        self.parent = parent
 
 
     def get_handle(self, handle_name:str=None)->RenderBody:
@@ -44,14 +52,20 @@ class StorageFurnitureDrawer(SpecifiedObject):
 
 
 class StorageFurniture(SpecifiedObject):
-    def __init__(self, storage_furniture_body: Articulation, name:str=None):
+    def __init__(
+            self, 
+            storage_furniture_body: Articulation, 
+            name:str=None,
+            parent: SpecifiedObject = None,
+    ):
         super().__init__()
 
         self.body = storage_furniture_body
-        if name!=None:
+        if name != None:
             self.body.set_name(name)
+        self.parent = parent
 
-        self.handle_num=0
+        self.handle_num = 0
         self.handle_list: List[RenderBody]=[]
         self.handle_open_limits: List[float]=[]        
         self.drawer_list: List[StorageFurnitureDrawer]=[]
@@ -61,7 +75,7 @@ class StorageFurniture(SpecifiedObject):
             # And we assume only the graspable part of a handle could be called "handle" 
             handle: RenderBody = drawer_joint.get_child_link().get_visual_bodies()[-1]
             handle.set_name(f"{self.body.get_name()}_handle_{index}")
-            self.handle_num+=1
+            self.handle_num += 1
             self.handle_list.append(handle)
             self.handle_open_limits.append(drawer_joint.get_limits()[0][1])
 
@@ -70,6 +84,7 @@ class StorageFurniture(SpecifiedObject):
                     storage_furniture_body=self.body, 
                     drawer_body=drawer_joint.get_child_link(), 
                     name=f"{self.body.get_name()}_drawer_{index}",
+                    parent=self,
                 )
             )
 
@@ -116,9 +131,9 @@ class StorageFurniture(SpecifiedObject):
         return _get_pcd_from_vis_body(drawer_link, handle_vis_body, handle_vis_body_index, dense_sample_convex)
     
 
-    def get_drawer_pcd_by_name(self, drawer_name: str, dense_sample_convex:bool=False)->np.ndarray:
+    def get_drawer_pcd_by_name(self, drawer_name: str)->np.ndarray:
         drawer_body : Link = self.get_drawer_by_name(drawer_name).body  
-        return get_pcd_from_obj(drawer_body, dense_sample_convex)
+        return get_pcd_from_obj(drawer_body)
 
 
     def get_open_degree_by_name(self, handle_name:str)->float:
@@ -170,7 +185,8 @@ class Robot(SpecifiedObject):
             move_group:str,
             active_joints_num_wo_EE:int,
             mounted_obj:list[Link]=[],
-            name:str=None
+            name:str=None,
+            parent: SpecifiedObject = None,
         ):
         super().__init__()
 
@@ -191,6 +207,8 @@ class Robot(SpecifiedObject):
         
         if name!=None:
             self.body.set_name(name)
+
+        self.parent = parent
 
     def _get_origin_link_joint(self):
         robot_loader = self.task_scene.scene.create_urdf_loader()
@@ -232,12 +250,15 @@ class CatapultArm(SpecifiedObject):
             catapult_body: Articulation,
             catapult_arm_body: Link,
             catapult_arm_name: str=None,
+            parent: SpecifiedObject = None,
     ):
         self.catapult_body=catapult_body
         self.body=catapult_arm_body
         
         if catapult_arm_name != None:
             self.body.set_name(catapult_arm_name)
+
+        self.parent = parent
 
 
 
@@ -247,12 +268,15 @@ class CatapultButton(SpecifiedObject):
             catapult_body: Articulation,
             button_body: Link,
             button_name:str = None,
+            parent: SpecifiedObject = None,
     ):
         self.catapult_body = catapult_body
         self.body = button_body
 
         if button_name != None:
             self.body.set_name(button_name)
+
+        self.parent = parent
 
         assert self.body.get_name()!=None, "The button name must be set."
 
@@ -280,7 +304,8 @@ class Catapult(SpecifiedObject):
             self,
             catapult_body: Articulation, 
             catapult_name:str=None,
-            initial_qf:np.ndarray=None
+            initial_qf:np.ndarray=None,
+            parent: SpecifiedObject = None,
     ):
         self.body=catapult_body
 
@@ -292,10 +317,10 @@ class Catapult(SpecifiedObject):
         for link in self.body.get_links():
             if link.get_name() == "catapult_arm":
                 link.set_name(self.body.get_name()+"_arm")
-                self.catapult_arm = CatapultArm(self.body, link, self.body.get_name()+"_arm")
+                self.catapult_arm = CatapultArm(self.body, link, self.body.get_name()+"_arm", parent=self)
             if link.get_name() == "button":
                 link.set_name(self.body.get_name()+"_button")
-                self.button = CatapultButton(self.body, link, self.body.get_name()+"_button")
+                self.button = CatapultButton(self.body, link, self.body.get_name()+"_button", parent=self)
         
         for joint_index, joint in enumerate(self.body.get_active_joints()):
             if joint.get_child_link().get_name()=="catapult_arm":
@@ -310,6 +335,8 @@ class Catapult(SpecifiedObject):
         self.initial_qf=initial_qf
         if self.initial_qf is not None:
             self.body.set_qf(self.initial_qf)
+
+        self.parent = parent
 
 
     def check_activate(self):

@@ -4,10 +4,10 @@ import numpy as np
 from scipy.spatial import ConvexHull
 import trimesh
 import open3d as o3d
-from typing import Union, Tuple
+from typing import Union, Tuple, List, TYPE_CHECKING
 from itertools import combinations
 
-from scene.core import SpecifiedObject
+from scene.core import SpecifiedObject, TaskScene
 
 def get_pose_by_name(
         scene:Scene,
@@ -67,16 +67,49 @@ def get_object_by_name(
     return None
 
 
+def get_scene_pcd(
+        task_scene: TaskScene,
+        exclude: List[str] = [],
+) -> np.ndarray:
+    scene_pcd=np.array([]).reshape(0, 3)
+    for obj in task_scene.object_list:
+        # The parent SpecifiedObject will include the pcd of this obj
+        if isinstance(obj, SpecifiedObject) and obj.parent!=None or obj.get_name() in exclude:
+            continue
+        pcd = get_pcd_from_obj(obj)
+        scene_pcd = np.concatenate((scene_pcd, pcd), axis=0)
+    return scene_pcd
+
+
+def get_scene_pcd_normals(
+        task_scene: TaskScene, 
+        exclude: List[str] = [],
+) -> Tuple[np.ndarray]:
+    scene_pcd=np.array([]).reshape(0, 3)
+    scene_normals=np.array([]).reshape(0, 3)
+    for obj in task_scene.get_object_list():
+        # The parent SpecifiedObject will include the pcd & normals of this obj
+        if isinstance(obj, SpecifiedObject) and obj.parent!=None or obj.get_name() in exclude:
+            continue
+        if isinstance(obj, SpecifiedObject) and type(obj.body)==Articulation or type(obj)==Articulation:
+            pcd, normals = get_pcd_normals_from_obj(obj)
+        else:
+            pcd, normals = get_pcd_normals_from_obj(obj)
+
+        scene_pcd = np.concatenate((scene_pcd, pcd), axis=0)
+        scene_normals = np.concatenate((scene_normals, normals), axis=0)
+    return scene_pcd, scene_normals
+
+
 def get_pcd_from_obj(
         obj: Union[Actor,Link,Articulation,SpecifiedObject],
-        dense_sample_convex:bool=False
 )->np.ndarray:
     if type(obj)==Actor or type(obj)==Link:
-        return get_pcd_from_actor(obj, dense_sample_convex)
+        return get_pcd_from_actor(obj, dense_sample_convex=False)
     elif type(obj)==Articulation:
-        return get_pcd_from_articulation(obj, dense_sample_convex)
+        return get_pcd_from_articulation(obj, dense_sample_convex=True)
     elif isinstance(obj, SpecifiedObject):
-        return obj.get_pcd(dense_sample_convex)
+        return obj.get_pcd()
     else:
         return None
         
@@ -158,11 +191,7 @@ def _get_pcd_from_render_shape(
     return pcd
 
 
-def _dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
-    sample_count = 10000
-    if len(point_cloud) > sample_count:
-        return point_cloud
-    
+def _dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:    
     # In case the pointcloud cannot be a convex for dense sampling
     normal_vector, are_coplanar = _are_points_coplanar(point_cloud)
     if are_coplanar:
@@ -171,10 +200,31 @@ def _dense_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
         point_cloud=np.concatenate((point_cloud_upward, point_cloud_downward), axis=0)
     
     hull = ConvexHull(point_cloud)
+
+    # sample_count = 10000
+    sample_count = int(50000*hull.area)
+    if len(point_cloud) > sample_count and hull.area>0.0005:
+        # hull.area>0.0005 is in case the object is so small that 50000*hull.area is bigger than len(point_cloud),
+        # but the points/vertices on the object surface are uneven. So it needs uniform_sample_convex_pcd.
+        if hull.area>0.0005:
+            return uniform_sample_convex_pcd(point_cloud)
+        else:
+            return point_cloud
+    
     mesh = trimesh.Trimesh(vertices=point_cloud, faces=hull.simplices)
     denser_pcd, _ = trimesh.sample.sample_surface(mesh, sample_count)
 
     return np.array(denser_pcd)
+
+
+def uniform_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
+    sample_count = len(point_cloud)
+    
+    hull = ConvexHull(point_cloud)
+    mesh = trimesh.Trimesh(vertices=point_cloud, faces=hull.simplices)
+    uniform_pcd, _ = trimesh.sample.sample_surface(mesh, sample_count)
+
+    return uniform_pcd
 
 
 def _are_points_coplanar(points:np.ndarray)->Union[np.ndarray, bool]:
@@ -205,38 +255,26 @@ def _are_points_coplanar(points:np.ndarray)->Union[np.ndarray, bool]:
     return normal_vector, True
 
 
-def uniform_sample_convex_pcd(point_cloud: np.ndarray) -> np.ndarray:
-    sample_count = len(point_cloud)
-    
-    hull = ConvexHull(point_cloud)
-    mesh = trimesh.Trimesh(vertices=point_cloud, faces=hull.simplices)
-    uniform_pcd, _ = trimesh.sample.sample_surface(mesh, sample_count)
-
-    return uniform_pcd
-
-
 def get_pcd_normals_from_obj(
         obj: Union[Actor, Link, Articulation, SpecifiedObject],
-        dense_sample_convex:bool=False,
 )->Tuple[np.ndarray, np.ndarray]:
     if type(obj)==Actor or type(obj)==Link:
-        return get_pcd_normals_from_actor(obj, dense_sample_convex)
+        return get_pcd_normals_from_actor(obj)
     elif type(obj)==Articulation:
-        return get_pcd_normals_from_articulation(obj, dense_sample_convex)
+        return get_pcd_normals_from_articulation(obj)
     elif isinstance(obj, SpecifiedObject):
-        return obj.get_pcd_normals(dense_sample_convex)
+        return obj.get_pcd_normals()
     else:
         return None
     
 
 def get_pcd_normals_from_articulation(
-        articulation: Articulation,
-        dense_sample_convex:bool=False        
+        articulation: Articulation      
 ) -> np.ndarray:
     pcd=np.array([]).reshape(0, 3)
     normals=np.array([]).reshape(0, 3)
     for link in articulation.get_links():
-        part_pcd, part_normals = get_pcd_normals_from_actor(link, dense_sample_convex)
+        part_pcd, part_normals = get_pcd_normals_from_actor(link)
         pcd=np.concatenate((pcd, part_pcd), axis=0)
         normals=np.concatenate((normals, part_normals), axis=0)
     
@@ -244,8 +282,7 @@ def get_pcd_normals_from_articulation(
 
 
 def get_pcd_normals_from_actor(
-        obj: Union[Actor, Link],
-        dense_sample_convex:bool=False
+        obj: Union[Actor, Link]
 ) -> Tuple[np.ndarray, np.ndarray]:
     if type(obj)==Actor:
         obj_builder = obj.get_builder()
@@ -263,11 +300,10 @@ def get_pcd_normals_from_actor(
             # If the object visual body type is file/mesh, then the normals will be totally ground truth, 
             # and each normal will correspond to a point of the pcd, which is also ground truth. 
             # So the pcd can not be densely sampled, which will introduce random factor into the obtained pcd. 
-            dense_sample_convex=False
             part_pcd=np.array([]).reshape(0,3)
             part_normals=np.array([]).reshape(0,3)
             for render_shape in vis_body.get_render_shapes():
-                part_part_pcd = _get_pcd_from_render_shape(obj, vis_body, render_shape, vis_body_index, dense_sample_convex)
+                part_part_pcd = _get_pcd_from_render_shape(obj, vis_body, render_shape, vis_body_index, dense_sample_convex=False)
                 part_part_normals = render_shape.mesh.normals
                 part_pcd=np.concatenate((part_pcd, part_part_pcd), axis=0)
                 part_normals=np.concatenate((part_normals, part_part_normals), axis=0)
@@ -275,7 +311,7 @@ def get_pcd_normals_from_actor(
             part_pcd=np.array([]).reshape(0,3)
             part_normals=np.array([]).reshape(0,3)
             for render_shape in vis_body.get_render_shapes():
-                part_part_pcd = _get_pcd_from_render_shape(obj, vis_body, render_shape, vis_body_index, dense_sample_convex)
+                part_part_pcd = _get_pcd_from_render_shape(obj, vis_body, render_shape, vis_body_index, dense_sample_convex=True)
                 part_part_normals = _get_normals_from_convex(part_part_pcd)
                 part_pcd=np.concatenate((part_pcd, part_part_pcd), axis=0)
                 part_normals=np.concatenate((part_normals, part_part_normals), axis=0)

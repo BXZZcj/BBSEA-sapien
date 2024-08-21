@@ -1,5 +1,5 @@
 import sapien.core as sapien
-from sapien.core import Pose, Actor, Articulation
+from sapien.core import Pose, Actor, Link, Articulation
 from sapien.utils import Viewer
 import numpy as np
 from transforms3d import euler, axangles
@@ -8,10 +8,12 @@ from typing import Tuple, Union
 import quaternion
 
 from .core import Move_Tool
-from perception import get_pcd_from_actor, \
-    get_pcd_from_obj, \
+from .web_api import get_grasp_pose
+from perception import get_pcd_from_obj, \
     get_actor_by_name, \
-    get_pcd_normals_from_obj
+    get_pcd_normals_from_obj, \
+    get_scene_pcd, \
+    get_scene_pcd_normals
 from transforms3d import euler, quaternions
 from utils import panda_x_direction_quant, panda_z_direction_quant, panda_xyz_direction_quant
 from scene.core import TaskScene, SpecifiedObject
@@ -133,7 +135,7 @@ class PandaPrimitives:
             joint.set_drive_target(0)
         # Make the grasping more stable.
         target_qf = self.robot.body.get_qf()
-        target_qf[-2:]=[20,20]
+        target_qf[-2:]=[5,5]
         self.robot.body.set_qf(target_qf)
 
         last_gripper_qpos=None
@@ -202,6 +204,12 @@ class PandaPrimitives:
             pose_post_push.set_p(np.array([obj_center[0], obj_center[1], obj_pcd[:,2].min()+obj_height/4]) + direction * distance)
             pose_post_push.set_q(panda_x_direction_quant(gripper_x_direction))
 
+            if self.move_tool.check_reachability_IK(target_pose=pose_pre_push) \
+                and self.move_tool.check_reachability_IK(target_pose=pose_post_push):
+                pass
+            else:
+                pose_pre_push, pose_post_push = None, None
+
             return pose_pre_push, pose_post_push
         
 
@@ -222,6 +230,9 @@ class PandaPrimitives:
             return interpolated_pq
 
         pose_pre_push, pose_post_push = _compute_pose_for_push(object_name, direction, distance)   
+        if pose_pre_push==None or pose_post_push==None:
+            raise Exception("No prepush/postpush pose achievable in Push action.")
+
         push_pose_path = _interpolate_push_path(pose_pre_push, pose_post_push)
         
         self._open_gripper()
@@ -230,15 +241,13 @@ class PandaPrimitives:
             # raise Exception()
             print("Collision Avoidance Computation Fails.")
             if self._move_to_pose(push_pose_path[0])==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the prepush pose.")
             
         self._close_gripper()
 
         for push_pose in push_pose_path[1:]:
             if self._move_to_pose(push_pose, guarantee_screw_mp=True, speed_factor=1)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails, when gripper is pushing.")
         
         return 0
     
@@ -261,7 +270,7 @@ class PandaPrimitives:
             P /= P.sum()
 
             attempt_count = 0
-            attempt_times = 100
+            attempt_times = 3
             for i in range(attempt_times):
                 candidate_indices = np.random.choice(
                     len(pcd),
@@ -343,30 +352,49 @@ class PandaPrimitives:
             final_gripper_q = panda_q_mirror1 if sum(panda_gripper_q_cur*panda_q_mirror1) < sum(panda_gripper_q_cur*panda_q_mirror2) else panda_q_mirror2
             
             return final_gripper_q
+        
+
+        def _compute_pose_for_pick_via_policy(
+                obj: Union[Actor,Link,Articulation,SpecifiedObject], 
+        )-> Tuple[Pose, Pose]:
+            env_pcd=get_scene_pcd(self.task_scene)
+            target_pcd=get_pcd_from_obj(obj)
+
+            grasp_poses, gripper_meshes = get_grasp_pose(env_pcd, target_pcd)
+
+            import open3d as o3d 
+            cloud = o3d.geometry.PointCloud()
+            cloud.points = o3d.utility.Vector3dVector(env_pcd.astype(np.float32))
+            o3d.visualization.draw_geometries([cloud, *gripper_meshes])
+            
+            candidate_grasp_pose = grasp_poses[0]
+
+            gripper_orientation = np.array(candidate_grasp_pose["rotation_matrix"]) @ np.array([0,0,1])
+
+            grasp_pose = sapien.Pose(p=candidate_grasp_pose["translation"], q=quaternions.mat2quat(np.array(candidate_grasp_pose["rotation_matrix"])))
+            pregrasp_pose = sapien.Pose(p=grasp_pose.p - gripper_orientation * np.random.uniform(0.2, 0.3), q=grasp_pose.q)
+
+            return grasp_pose, pregrasp_pose
 
 
         self._open_gripper()
-
+        
         grasp_pose, pregrasp_pose = _compute_pose_for_pick(self.task_scene.get_object_by_name(object_name))
         if grasp_pose==None or pregrasp_pose==None:
-            return -1
+            raise Exception("No grasp/pregrasp pose achievable in Pick action.")
 
         if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
             print("Collision Avoidance Computation Fails.")
-            raise Exception()
             if self._move_to_pose(pregrasp_pose)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails.")
 
         if self._move_to_pose(grasp_pose)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+            raise Exception("Inverse Kinematics Computation Fails.")
 
         self._close_gripper()
         
-        if self._move_to_pose(pregrasp_pose, collision_avoid_attach_obj=object_name)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+        if self._move_to_pose(pregrasp_pose, collision_avoid_attach_obj=object_name, speed_factor=0.3)==-1:
+            raise Exception("Inverse Kinematics Computation Fails.")
         
         # TODO Judge whether the target object has been grasped successfully.
         self.grasped_obj = object_name
@@ -378,7 +406,10 @@ class PandaPrimitives:
             self,
             object_name:str,
     ):
-        def _compute_pose_for_place(obj: Union[Actor,Articulation,SpecifiedObject]) -> Tuple[Pose, Pose]:
+        if self.grasped_obj == None:
+            raise Exception("Nothing has been grasped, so the PlaceOn primitive action is unexecutable.")
+
+        def _compute_pose_for_place(obj: Union[Actor,Articulation,SpecifiedObject]) -> Tuple[Pose, Pose, Pose]:
             pcd, pcd_normals = get_pcd_normals_from_obj(obj)
             filter_out_mask = pcd_normals[:, 2] < 0.95
 
@@ -390,7 +421,7 @@ class PandaPrimitives:
             if num_candidates == 0:
                 return None, None
             
-            attempt_times = 100
+            attempt_times = 3
             for i in range(attempt_times):
                 candidate_indices = np.random.choice(
                     num_candidates,
@@ -411,11 +442,10 @@ class PandaPrimitives:
                 # computer gripper position
                 contact_position = pcd_upward[candidate_indices].copy().mean(axis=0)
 
-                grasped_obj_pcd = get_pcd_from_actor(get_actor_by_name(self.task_scene.scene, self.grasped_obj))
+                grasped_obj_pcd = get_pcd_from_obj(get_actor_by_name(self.task_scene.scene, self.grasped_obj))
                 pcd_projections = np.dot(grasped_obj_pcd, place_z_direction)
                 span = np.max(pcd_projections) - np.min(pcd_projections)
-                gripper_deep = 0.05
-                place_distance = max(span-gripper_deep, 0)
+                place_distance = max(span-FL, 0)
 
                 place_pose = Pose(
                     p = contact_position + place_distance * -place_z_direction,
@@ -426,6 +456,8 @@ class PandaPrimitives:
                     p = place_pose.p + np.random.uniform(0.1, 0.2) * (-place_z_direction),
                     q = place_direction_quant
                 )
+
+                retreat_pose = preplace_pose
                 
                 if self.move_tool.check_reachability_IK(target_pose=place_pose) \
                     and self.move_tool.check_reachability_IK(target_pose=preplace_pose):
@@ -434,35 +466,31 @@ class PandaPrimitives:
                     place_pose, preplace_pose = None, None
                     continue
 
-            return place_pose, preplace_pose
+            return place_pose, preplace_pose, retreat_pose
 
 
-        place_pose, preplace_pose = _compute_pose_for_place(self.task_scene.get_object_by_name(object_name))
-        if place_pose==None or preplace_pose==None:
-            return -1
+        place_pose, preplace_pose, retreat_pose = _compute_pose_for_place(self.task_scene.get_object_by_name(object_name))
+        if place_pose==None or preplace_pose==None or retreat_pose==None:
+            raise Exception("No place/preplace pose achievable in PlaceOn action.")
 
-        if self._move_to_pose(preplace_pose, collision_avoid_attach_obj=self.grasped_obj)==-1:
-            print("Collision Avoidance Computation Fails.")
-            raise Exception()
+        if self._move_to_pose(preplace_pose, collision_avoid_attach_obj=self.grasped_obj, speed_factor=0.3)==-1:
+            print("Collision Avoidance Computation Fails, when gripper moves to the preplace pose.")
             if self._move_to_pose(preplace_pose)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the preplace pose.")
         
-        if self._move_to_pose(place_pose, collision_avoid_attach_obj=self.grasped_obj)==-1:
-            print("Collision Avoidance Computation Fails.")
+        if self._move_to_pose(place_pose, collision_avoid_attach_obj=self.grasped_obj, speed_factor=0.3)==-1:
+            print("Collision Avoidance Computation Fails, when gripper moves to the place pose.")
             if self._move_to_pose(place_pose)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the place pose.")
         
         self._open_gripper()
 
         self.grasped_obj=None
         
-        if self._move_to_pose(preplace_pose, collision_avoid_all=True)==-1:
-            print("Collision Avoidance Computation Fails.")
-            if self._move_to_pose(preplace_pose)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+        if self._move_to_pose(retreat_pose, collision_avoid_all=True)==-1:
+            print("Collision Avoidance Computation Fails, when gripper moves to the retreat pose.")
+            if self._move_to_pose(retreat_pose)==-1:
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the retreat pose.")
         
         return 0
     
@@ -471,9 +499,16 @@ class PandaPrimitives:
             self,
             place_pos:str,
     ):
-        def _compute_pose_for_place(place_pos):
+        def _compute_pose_for_place(place_pos)-> Tuple[Pose, Pose, Pose]:
+            place_z_direction = np.array([0,0,-1])
+            
+            grasped_obj_pcd = get_pcd_from_obj(get_actor_by_name(self.task_scene.scene, self.grasped_obj))
+            pcd_projections = np.dot(grasped_obj_pcd, place_z_direction)
+            span = np.max(pcd_projections) - np.min(pcd_projections)
+            place_distance = max(span-FL, 0)
+
             place_pose = Pose(
-                p = place_pos,
+                p = place_pos + place_distance * -place_z_direction,
                 q = self.robot.body.get_links()[-3].get_pose().q
             )
 
@@ -482,30 +517,28 @@ class PandaPrimitives:
                 q = self.robot.body.get_links()[-3].get_pose().q
             )
 
-            return place_pose, preplace_pose 
+            retreat_pose = preplace_pose
 
+            return place_pose, preplace_pose, retreat_pose
         
-        place_pose, preplace_pose = _compute_pose_for_place(place_pos)
-        if place_pose==None or preplace_pose==None:
-            return -1
+        place_pose, preplace_pose, retreat_pose = _compute_pose_for_place(place_pos)
+        if place_pose==None or preplace_pose==None or retreat_pose==None:
+            raise Exception("No place/preplace pose achievable in PlaceAt action.")
 
-        if self._move_to_pose(preplace_pose, collision_avoid_all=True)==-1:
-            print("Collision Avoidance Computation Fails.")
+        if self._move_to_pose(preplace_pose, collision_avoid_all=True, speed_factor=0.3)==-1:
+            print("Collision Avoidance Computation Fails, when gripper moves to the preplace pose.")
             if self._move_to_pose(preplace_pose)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the preplace pose.")
         
-        if self._move_to_pose(place_pose)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+        if self._move_to_pose(place_pose, speed_factor=0.3)==-1:
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the place pose.")
         
         self._open_gripper()
 
         self.grasped_obj=None
         
-        if self._move_to_pose(preplace_pose)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+        if self._move_to_pose(retreat_pose)==-1:
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the retreat pose.")
         
         return 0
     
@@ -515,7 +548,8 @@ class PandaPrimitives:
             handle_name: str, 
             target_open_degree:float=1
     ):
-        assert target_open_degree>=0 and target_open_degree<=1, "The target open degree should be between 0 and 1."
+        if target_open_degree<0 or target_open_degree>1:
+            raise Exception("The target open degree should be between 0 and 1.")
         
         handle_parent_name = handle_name.split("_")[0]
         handle_parent : StorageFurniture = self.task_scene.get_object_by_name(handle_parent_name)
@@ -564,7 +598,7 @@ class PandaPrimitives:
 
             sample_count = 1000
             circle_curve = lambda x : (1-(x-1)**2)**0.5
-            P=-1e10*np.log(circle_curve(circle_curve(np.abs(np.linspace(-1,1, sample_count)))))
+            P=-1e10*np.log(circle_curve(circle_curve(circle_curve(circle_curve(np.abs(np.linspace(-1,1, sample_count)))))))
             P=P/P.sum()
             q_x_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
             q_y_bias_candidate = np.linspace(-np.pi/6, np.pi/6, sample_count)
@@ -587,44 +621,51 @@ class PandaPrimitives:
             grasp_z_direction = (R@base_z_direction.T).T
             grasp_pose.set_q(panda_xyz_direction_quant(grasp_x_direction, grasp_y_direction, grasp_z_direction))
 
-            ungrasp_pose=sapien.Pose()
-            ungrasp_pose.set_p(grasp_pose.p+pull_direction*open_displacement)
-            ungrasp_pose.set_q(grasp_pose.q)
-
             pregrasp_pose=sapien.Pose()
             pregrasp_pose.set_p(grasp_pose.p+
                                 np.random.uniform(max(0.05, open_displacement/3), open_displacement)*pull_direction + 
                                 np.random.randn(3)/50)
             pregrasp_pose.set_q(euler.euler2quat(*(euler.quat2euler(grasp_pose.q)+np.random.randn(3)/50)))
 
-            return pregrasp_pose, grasp_pose, ungrasp_pose
+            ungrasp_pose=sapien.Pose()
+            ungrasp_pose.set_p(grasp_pose.p+pull_direction*open_displacement)
+            ungrasp_pose.set_q(grasp_pose.q)
+
+            retreat_pose=sapien.Pose()
+            retreat_pose.set_p(ungrasp_pose.p+pull_direction*FL*2)
+            retreat_pose.set_q(grasp_pose.q)
+
+            return pregrasp_pose, grasp_pose, ungrasp_pose, retreat_pose
 
         assert "handle" in handle_name, "Only the handle of target object is graspable."
 
         self._open_gripper()
 
-        pregrasp_pose, grasp_pose, ungrasp_pose = _compute_pose_for_grasp(handle_name, target_open_degree)
-        if grasp_pose==None or pregrasp_pose==None or ungrasp_pose==None:
-            return -1
+        pregrasp_pose, grasp_pose, ungrasp_pose, retreat_pose = _compute_pose_for_grasp(handle_name, target_open_degree)
+        if grasp_pose==None or pregrasp_pose==None or ungrasp_pose==None or retreat_pose==None:
+            raise Exception("No grasp/pregrasp pose achievable in DrawerOpen action.")
 
         if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
-            raise Exception()
+            # raise Exception()
             print("Collision Avoidance Computation Fails.")
             if self._move_to_pose(pregrasp_pose)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the pregrasp pose.")
         
         if self._move_to_pose(grasp_pose)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the grasp pose.")
 
         self._close_gripper()
         
-        if self._move_to_pose(ungrasp_pose, speed_factor=0.3, guarantee_screw_mp=True)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+        if self._move_to_pose(ungrasp_pose, speed_factor=0.1, guarantee_screw_mp=True)==-1:
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the ungrasp pose.")
         
         self._open_gripper()
+
+        if self._move_to_pose(retreat_pose, collision_avoid_all=True)==-1:
+            # raise Exception()
+            print("Collision Avoidance Computation Fails.")
+            if self._move_to_pose(retreat_pose)==-1:
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the retreat pose.")
         
         return 0
     
@@ -724,24 +765,21 @@ class PandaPrimitives:
 
         pregrasp_pose, grasp_pose, ungrasp_pose = _compute_pose_for_grasp(handle_name, target_open_degree)
         if grasp_pose==None or pregrasp_pose==None or ungrasp_pose==None:
-            return -1
+            raise Exception("No grasp/pregrasp/ungrasp pose achievable in DrawerClose action.")
 
         if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
-            raise Exception()
+            # raise Exception()
             print("Collision Avoidance Computation Fails.")
             if self._move_to_pose(pregrasp_pose)==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the pregrasp pose.")
         
         if self._move_to_pose(grasp_pose)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the grasp pose.")
 
         self._close_gripper()
         
         if self._move_to_pose(ungrasp_pose, speed_factor=0.3, guarantee_screw_mp=True)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the ungrasp pose.")
 
         self._open_gripper()
 
@@ -752,7 +790,7 @@ class PandaPrimitives:
             self, 
             obj_name: str, 
             direction: np.ndarray=np.array([0,0,-1]), 
-            distance: int = 0.015,
+            distance: float = 0.015,
     ):
         direction = np.array(direction)
         assert len(direction)==2 or len(direction)==3, "The direction shape is invalid." 
@@ -788,23 +826,29 @@ class PandaPrimitives:
             pose_post_push.set_p(obj_center - direction * obj_direction_range/2 + direction * distance)
             pose_post_push.set_q(gripper_quant)
 
+            if self.move_tool.check_reachability_IK(target_pose=pose_pre_push) \
+                and self.move_tool.check_reachability_IK(target_pose=pose_post_push):
+                pass
+            else:
+                pose_pre_push, pose_post_push = None, None
+
             return pose_pre_push, pose_post_push
         
         self._open_gripper()
 
         pose_prepress, pose_press = _compute_pose_for_press(obj_name, direction, distance)
+        if pose_prepress==None or pose_press==None:
+            raise Exception("No prepress/press pose achievable in Press action.")
 
         if self._move_to_pose(pose_prepress, collision_avoid_all=True)==-1:
-            raise Exception()
+            # raise Exception()
             print("Collision Avoidance Computation Fails.")
-            if self._move_to_pose(push_pose_path[0])==-1:
-                print("Inverse Kinematics Computation Fails.")
-                return -1
+            if self._move_to_pose(pose_prepress)==-1:
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the prepress pose.")
             
         self._close_gripper()
 
         if self._move_to_pose(pose_press, guarantee_screw_mp=True, speed_factor=1)==-1:
-            print("Inverse Kinematics Computation Fails.")
-            return -1
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the press pose.")
         
         return 0

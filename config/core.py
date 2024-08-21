@@ -3,7 +3,7 @@ import torch
 
 manipulate_root_path="/home/jiechu/Data/TinyRobotBench/manipulate/"
 TINYROBOTBENCH_root_path="/home/jiechu/Data/TinyRobotBench/"
-dataset_path="/home/jiechu/Data/TinyRobotBench/dataset_test"
+dataset_path="/home/jiechu/Data/TinyRobotBench/generated_dataset"
 
 
 device = (
@@ -32,5 +32,9 @@ prompts_path = {
     "success_infer":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/success_infer.txt",
 }
 
-gpt_api_key = "sk-es3y9DmO56UVUNFHPN7W2ksixPkR6W8QXKGs0h3FQoggujJQ"
-gpt_base_url = "https://api.chatanywhere.tech"
+chatanywhere_api_key = "sk-es3y9DmO56UVUNFHPN7W2ksixPkR6W8QXKGs0h3FQoggujJQ"
+chatanywhere_base_url = "https://api.chatanywhere.tech"
+
+azure_api_key="c5ae1c3ed4e74e209fbb45cfc8cb3b2f"
+azure_endpoint="https://gpt4v-0.openai.azure.com/"
+azure_api_version="2023-12-01-preview"
