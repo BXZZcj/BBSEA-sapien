@@ -18,7 +18,7 @@ def get_grasp_pose(
         [0, -1, 0],
         [0, 0, -1]]
     )
-    trans = np.array([-0.46, 0, -1])
+    trans = np.array([-0.23, 0, -1])
     tf_mat=np.zeros(shape=(4, 4))
     tf_mat[:3, :3] = rot_mat
     tf_mat[:3, 3] = trans

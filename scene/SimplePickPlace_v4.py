@@ -68,6 +68,10 @@ class SimplePickPlaceScene(TaskScene):
                 self.get_object_by_name("catapult").activate_behavior()
         self.set_step_callback(step_callback)
 
+        # self.viewer.set_camera_xyz(x=1.56, y=-0.6, z=0.7)
+        # self.viewer.set_camera_rpy(r=0, p=-0.8, y=np.pi)
+        # self.viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
+
 
     def _create_tabletop(self) -> None:
         # table top
@@ -205,8 +209,8 @@ class SimplePickPlaceScene(TaskScene):
         self.scenegraph=SceneGraph()
 
         for obj in self.object_list:
-            if type(obj)==sapien.Actor and obj.get_name()!="table":
-                pcd = get_pcd_from_actor(obj)
+            if type(obj)==sapien.Actor or type(obj)==sapien.Articulation:# and obj.get_name()!="table":
+                pcd = get_pcd_from_obj(obj)
                 node=Node(obj.get_name(), pcd)
                 self.scenegraph.add_node_wo_state(node)
             elif type(obj)==StorageFurniture:
@@ -330,8 +334,8 @@ if __name__ == '__main__':
     demo.set_task_index(1, 1)
 
     demo.set_step_index(0)
-    demo.primitives.Pick('073-a_lego_duplo') 
-    demo.primitives.PlaceAt([0.62, -0.06, 0.03])
+    demo.primitives.Pick('banana')
+    demo.primitives.PlaceOn('073-a_lego_duplo')
     # try:
     #     demo.primitives.Pick('073-g_lego_duplo')
     #     demo.primitives.PlaceOn('073-a_lego_duplo')

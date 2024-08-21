@@ -135,7 +135,7 @@ class PandaPrimitives:
             joint.set_drive_target(0)
         # Make the grasping more stable.
         target_qf = self.robot.body.get_qf()
-        target_qf[-2:]=[5,5]
+        target_qf[-2:]=[10,10]
         self.robot.body.set_qf(target_qf)
 
         last_gripper_qpos=None
@@ -259,7 +259,7 @@ class PandaPrimitives:
         def _compute_pose_for_pick(
                 obj: Union[Actor,Articulation,SpecifiedObject], 
                 pushin_more=True
-        )-> Tuple[Pose, Pose]:
+        )-> Tuple[Pose, Pose, Pose]:
             pcd, pcd_normals = get_pcd_normals_from_obj(obj)
             
             pointing_down = pcd_normals[:, 2] < 0.0
@@ -303,16 +303,18 @@ class PandaPrimitives:
                     p = position + normal * (pcd[:,2].max() - pcd[:,2].mean() + np.random.uniform(0.2, 0.3)),
                     q = panda_gripper_q,
                 )
+
+                retreat_pose=pregrasp_pose
                 
                 if self.move_tool.check_reachability_IK(target_pose=grasp_pose) \
                     and self.move_tool.check_reachability_IK(target_pose=pregrasp_pose):
                     break
                 else:
                     attempt_count+=1
-                    grasp_pose, pregrasp_pose = None, None
+                    grasp_pose, pregrasp_pose, retreat_pose = None, None, None
                     continue
 
-            return grasp_pose, pregrasp_pose
+            return grasp_pose, pregrasp_pose, retreat_pose
 
 
         def _cal_pick_orientation(pcd: np.ndarray) -> np.array:
@@ -356,7 +358,7 @@ class PandaPrimitives:
 
         def _compute_pose_for_pick_via_policy(
                 obj: Union[Actor,Link,Articulation,SpecifiedObject], 
-        )-> Tuple[Pose, Pose]:
+        )-> Tuple[Pose, Pose, Pose]:
             env_pcd=get_scene_pcd(self.task_scene)
             target_pcd=get_pcd_from_obj(obj)
 
@@ -365,36 +367,45 @@ class PandaPrimitives:
             import open3d as o3d 
             cloud = o3d.geometry.PointCloud()
             cloud.points = o3d.utility.Vector3dVector(env_pcd.astype(np.float32))
-            o3d.visualization.draw_geometries([cloud, *gripper_meshes])
+            o3d.visualization.draw_geometries([cloud, gripper_meshes[0]])
             
-            candidate_grasp_pose = grasp_poses[0]
+            for i in range(len(grasp_poses)):
+                candidate_grasp_pose = grasp_poses[i]
 
-            gripper_orientation = np.array(candidate_grasp_pose["rotation_matrix"]) @ np.array([0,0,1])
+                gripper_orientation = np.array(candidate_grasp_pose["rotation_matrix"]) @ np.array([0,0,1])
 
-            grasp_pose = sapien.Pose(p=candidate_grasp_pose["translation"], q=quaternions.mat2quat(np.array(candidate_grasp_pose["rotation_matrix"])))
-            pregrasp_pose = sapien.Pose(p=grasp_pose.p - gripper_orientation * np.random.uniform(0.2, 0.3), q=grasp_pose.q)
+                grasp_pose = sapien.Pose(p=candidate_grasp_pose["translation"], q=quaternions.mat2quat(np.array(candidate_grasp_pose["rotation_matrix"])))
+                pregrasp_pose = sapien.Pose(p=grasp_pose.p - gripper_orientation * np.random.uniform(0.2, 0.3), q=grasp_pose.q)
+                retreat_pose = pregrasp_pose
 
-            return grasp_pose, pregrasp_pose
+                if self.move_tool.check_reachability_IK(target_pose=grasp_pose) \
+                    and self.move_tool.check_reachability_IK(target_pose=pregrasp_pose):
+                    break
+                else:
+                    # grasp_pose, pregrasp_pose, retreat_pose = None, None, None
+                    break
+
+            return grasp_pose, pregrasp_pose, retreat_pose
 
 
         self._open_gripper()
         
-        grasp_pose, pregrasp_pose = _compute_pose_for_pick(self.task_scene.get_object_by_name(object_name))
-        if grasp_pose==None or pregrasp_pose==None:
-            raise Exception("No grasp/pregrasp pose achievable in Pick action.")
+        grasp_pose, pregrasp_pose, retreat_pose = _compute_pose_for_pick_via_policy(self.task_scene.get_object_by_name(object_name))
+        if grasp_pose==None or pregrasp_pose==None or retreat_pose==None:
+            raise Exception("No grasp/pregrasp/retreat pose achievable in Pick action.")
 
         if self._move_to_pose(pregrasp_pose, collision_avoid_all=True)==-1:
             print("Collision Avoidance Computation Fails.")
             if self._move_to_pose(pregrasp_pose)==-1:
-                raise Exception("Inverse Kinematics Computation Fails.")
+                raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the pregrasp pose.")
 
         if self._move_to_pose(grasp_pose)==-1:
-            raise Exception("Inverse Kinematics Computation Fails.")
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the grasp pose.")
 
         self._close_gripper()
         
-        if self._move_to_pose(pregrasp_pose, collision_avoid_attach_obj=object_name, speed_factor=0.3)==-1:
-            raise Exception("Inverse Kinematics Computation Fails.")
+        if self._move_to_pose(retreat_pose, collision_avoid_attach_obj=object_name, speed_factor=0.3)==-1:
+            raise Exception("Inverse Kinematics Computation Fails, when gripper moves to the retreat pose.")
         
         # TODO Judge whether the target object has been grasped successfully.
         self.grasped_obj = object_name
