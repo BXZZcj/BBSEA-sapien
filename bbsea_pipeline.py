@@ -1,17 +1,20 @@
 import os
 import json
+from typing import Callable
 
 from scene.SimplePickPlace_v4 import SimplePickPlaceScene
-from llm_interaction import propose_task, decompose_task, infer_if_success
+from scene.core import TaskScene
+from llm_interaction import *
 from config.core import dataset_path
 
 
-def main():
+def main(
+        scene: TaskScene,
+        get_perception_info: Callable,
+):
     #########################################################
     # Initialization the task scene
     #########################################################
-    TableTop = SimplePickPlaceScene()
-
     Pick = TableTop.primitives.Pick
     Push = TableTop.primitives.Push
     PlaceOn = TableTop.primitives.PlaceOn
@@ -21,14 +24,14 @@ def main():
     Press = TableTop.primitives.Press
 
 
-    task_SG = TableTop.get_scene_graph()
+    perception_info = get_perception_info()
     task_index=1
     is_task_subtask_suc_list=[]
     for i in range(1):        
         #########################################################
         # Task Propose
         #########################################################
-        task_list = propose_task(scene_graph=task_SG, model="vision")
+        task_list = propose_task_w_img(scene_graph=task_SG, model="vision")
 
         #########################################################
         # Task Decompose
@@ -96,4 +99,6 @@ def main():
 
 
 if __name__=="__main__":
-    main()
+    TableTop = SimplePickPlaceScene()
+    
+    main(scene=TableTop, get_perception_info=TableTop.get_rgb_picture)

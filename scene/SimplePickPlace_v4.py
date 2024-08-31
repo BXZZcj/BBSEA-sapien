@@ -335,7 +335,7 @@ if __name__ == '__main__':
 
     demo.set_step_index(0)
     demo.primitives.Pick('banana')
-    demo.primitives.PlaceOn('073-a_lego_duplo')
+    demo.primitives.PlaceOn('catapult')
     # try:
     #     demo.primitives.Pick('073-g_lego_duplo')
     #     demo.primitives.PlaceOn('073-a_lego_duplo')

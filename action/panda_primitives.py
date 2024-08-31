@@ -373,7 +373,7 @@ class PandaPrimitives:
                 candidate_grasp_pose = grasp_poses[i]
 
                 gripper_orientation = np.array(candidate_grasp_pose["rotation_matrix"]) @ np.array([0,0,1])
-
+                
                 grasp_pose = sapien.Pose(p=candidate_grasp_pose["translation"], q=quaternions.mat2quat(np.array(candidate_grasp_pose["rotation_matrix"])))
                 pregrasp_pose = sapien.Pose(p=grasp_pose.p - gripper_orientation * np.random.uniform(0.2, 0.3), q=grasp_pose.q)
                 retreat_pose = pregrasp_pose

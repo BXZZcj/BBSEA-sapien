@@ -65,10 +65,15 @@ def get_grasp_pose(
     grasp_poses_translations = (tf_mat_inv @ grasp_poses_translations_homo.T).T[:, :3]
 
     grasp_poses_rotation_matrices = np.array([pose["rotation_matrix"] for pose in grasp_poses])
-    grasp_poses_rotation_matrices = tf_mat_inv[:3, :3] @ grasp_poses_rotation_matrices
+    grasp_poses_rotation_matrices = tf_mat_inv[:3, :3] @ grasp_poses_rotation_matrices @ tf_mat[:3, :3]
+    # In the implementation of GraspNet, the forward direction of gripper is x-axis, 
+    # and up direction of the gripper is z-axis
+    grasp_poses_rotation_matrices[:, :, [0, 2]] = grasp_poses_rotation_matrices[:, :, [2, 0]]
+    grasp_poses_rotation_matrices[:, :, 1] *= -1
+    gripper_orientation = grasp_poses_rotation_matrices @ np.array([0,0,1])
 
     for grasp_pose, grasp_poses_translation, grasp_poses_rotation_matrix in zip(grasp_poses, grasp_poses_translations, grasp_poses_rotation_matrices):
-        grasp_pose["translation"] = grasp_poses_translation
+        grasp_pose["translation"] = grasp_poses_translation+gripper_orientation*0
         grasp_pose["rotation_matrix"] = grasp_poses_rotation_matrix
 
     # Convert the serial data of gripper meshes to o3d.geometry.TriangleMesh type

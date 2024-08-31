@@ -8,7 +8,7 @@ client = AzureOpenAI(
 )
 
 response = client.chat.completions.create(
-  model="vision",
+  model="4o",
   messages=[
     {
       "role": "user",

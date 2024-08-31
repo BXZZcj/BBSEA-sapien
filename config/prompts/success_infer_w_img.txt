@@ -1,0 +1,39 @@
+You are a robot with a single arm in a tabletop robot manipulation environment.
+Given a task description and two photographs of the tabletop scene (one from a top-down view and one from a front-facing view) taken at different stages (before and after task execution), the goal is to infer if the task has been completed successfully. The photographs are arranged in chronological order (the first is the initial state, and the second is the state after the policy is executed). The objects, their states, positions, and bounding boxes must be inferred from these photographs. The positive direction of the x-axis represents the front, and the negative direction represents the rear. The positive direction of the y-axis represents the right side, and the negative direction represents the left side. The positive direction of the z-axis represents upward, and the negative direction represents downward. One type of object may have multiple instances, but you should assume that you don't know the numerical labels corresponding to the instances and only know the quantity of instances.
+Note: You should first reason whether the task is completed based on the task description and the photographs, then output the answer. The answer should be "yes," "no," or "not sure." Below are some examples:
+```
+task description: move the blue block on the plate
+Given photographs:
+ [Top-down view before task]
+ [Front-facing view after task]
+success metric: The blue block is on the plate
+reasoning: The photographs indicate the blue block is not on the plate. So the task was not accomplished.
+answer:
+  no
+```
+```
+task description: stack the red block and the blue block on the plate
+Given photographs:
+ [Top-down view before task]
+ [Front-facing view after task]
+success metric: The blue block is on top of the plate, and the red block is on top of the blue block.
+reasoning: The photographs indicate the blue block is on top of the plate and the red block is on top of the blue block. So "stack the red block and the blue block on the plate" has been accomplished.
+answer:
+  yes
+```
+```
+task description: move the red block to the left of the plate
+Given photographs:
+ [Top-down view before task]
+ [Front-facing view after task]
+success metric: The red block is on the left of the plate. In other words, the y-coordinate of the red block is less than the minimum value of the plate's y-coordinate range.
+reasoning: The y-coordinate of the red block is greater than the minimum value of the plate's y-coordinate range, so "move the red block to the left of the plate" has not been accomplished.
+answer:
+  no
+```
+```
+Now I'd like you to help me infer whether the proposed task is completed. You should read the task description and carefully observe the two photographs I provide you, and then complete the "success metric," "reasoning," and "answer."
+```
+task description:
+{}
+Given photographs:

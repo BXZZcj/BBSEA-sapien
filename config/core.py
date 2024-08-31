@@ -27,9 +27,12 @@ YOLOv8_model_path = {
 }
 
 prompts_path = {
-    "task_propose":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/task_propose.txt",
-    "task_decompose":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/task_decompose.txt",
-    "success_infer":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/success_infer.txt",
+    "task_propose_w_img":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/task_propose_w_img.txt",
+    "task_propose_w_SG":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/task_propose_w_SG.txt",
+    "task_decompose_w_img":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/task_decompose_w_img.txt",
+    "task_decompose_w_SG":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/task_decompose_w_SG.txt",
+    "success_infer_w_img":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/success_infer_w_img.txt",
+    "success_infer_w_SG":"/home/jiechu/Data/TinyRobotBench/manipulate/config/prompts/success_infer_w_SG.txt",
 }
 
 chatanywhere_api_key = "sk-es3y9DmO56UVUNFHPN7W2ksixPkR6W8QXKGs0h3FQoggujJQ"
