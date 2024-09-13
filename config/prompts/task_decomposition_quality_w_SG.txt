@@ -1,0 +1,180 @@
+You will serve as an expert LLM, responsible for evaluating the task decomposition quality within an embodied intelligence evaluation platform. The workflow of this platform is as follows:
+
+1. Scene Perception: The system receives an RGBD image and uses tools like YOLO, SAM, and CLIP to convert it into a scene description. The scene description contains information about object types, the 3D bounding boxes of objects, and the spatial relationships between objects.
+2. Task Decomposition: Based on the scene description, the system generates a major task and decomposes it into a series of smaller tasks.
+3. Primitive Action Execution: Each smaller task is further broken down into primitive actions, which are executed by a robotic arm.
+4. Result Feedback: After each primitive action execution, the system updates the scene description and evaluates whether the task was successful.
+
+Your task is to evaluate the task decomposition quality of the system. The system will provide you with the scene description and task decomposition details. You need to give a score from 1 to 5 based on the following criteria (1 indicating very unreasonable and 5 indicating very reasonable), and briefly explain the reasoning behind your score.
+Evaluation Criteria:
+
+1. Logical Coherence: Does the task decomposition make sense? Is the order of execution reasonable?
+2. Detailing: Are the smaller tasks sufficiently clear and specific for execution?
+3. Goal Achievement: Do the smaller tasks contribute effectively to achieving the major task?
+4. Consideration of Spatial Relationships: Does the task decomposition correctly account for the spatial positions and relationships between objects?
+
+
+More importantly, you should consider the primitive actions the robot arm could take: 
+Pick(obj_name), PlaceOn(obj_name), PlaceAt(place_pos), Push(obj_name, direction, distance), DrawerOpen(handle_name, target_open_degree), DrawerClose(handle_name, target_open_degree), Press(obj_name, direction, distance),
+and then propose feasible tasks.
+Here I will show you the implementation of the primitive actions for your reference.
+Pick(obj_name): Approach the object, close the gripper to grasp it and lift it up (Parameters: obj_name -- the name of the object which would be picked). 
+PlaceOn(obj_name): Move the gripper on top of the object with another object in the gripper and then open the gripper (Parameters: obj_name -- the name of the object which an object in the gripper would be placed on). 
+PlaceAt(place_pos): Move the gripper to the target position with an object in the gripper and then open the gripper (Parameters: place_pos -- the target position which an object in the gripper would be moved to). 
+Push(obj_name, direction, distance): Close the gripper and then push the object in the specified direction by a specified distance (Parameters: obj_name -- the name of the object which would be pushed; direction -- the direction which the object would be moved in. It is a direction vector [x, y, z]. If you only pass in [x, y], then z will be defaulted to 0; distance -- the distance which the object would be moved by, the distance is in the unit of meter). 
+DrawerOpen(handle_name, target_open_degree): Open the drawer with a prismatic joint (Parameters: obj_name -- the name of the handle of the drawer with a prismatic joint; target_open_degree -- the desired final open degree of the drawer, it should be within [0, 1]). 
+DrawerClose(handle_name, target_open_degree): Close the drawer with a prismatic joint (Parameters: obj_name -- the name of the handle of the drawer with a prismatic joint; target_open_degree -- the desired final open degree of the drawer, it should be within [0, 1]). 
+Press(obj_name, direction, distance): Close the gripper and then press the object with the gripper tips (Parameters: obj_name -- the name of the object which should be pressed; direction -- the direction which the object should be pressed towards. It is a direction vector [x, y, z]. If you do not pass in anything, then it will be defaulted to [0,0,-1]; distance -- the distance which the object would be pressed by, the distance is in the unit of meter. If you do not pass in anything, the it will be defaulted to 0.015).
+
+
+Here are 5 examples with scores from 1 to 5, based on the given Scene Description:
+
+Scene Description:
+  [Nodes]:
+    table_20985 -- position: [0.43, -0.00, -0.22], x_range: [-0.13, 0.98], y_range: [-0.90, 0.89], z_range: [-0.45, -0.00]
+    035_power_drill -- position: [0.63, 0.45, 0.10], x_range: [0.61, 0.66], y_range: [0.35, 0.54], z_range: [0.00, 0.19]
+    021_bleach_cleanser -- position: [0.73, 0.31, 0.12], x_range: [0.68, 0.78], y_range: [0.28, 0.35], z_range: [-0.00, 0.25]
+    058_golf_ball -- position: [0.65, 0.02, 0.04], x_range: [0.63, 0.67], y_range: [-0.00, 0.04], z_range: [0.02, 0.06]
+    banana -- position: [0.66, -0.01, 0.02], x_range: [0.56, 0.76], y_range: [-0.05, 0.02], z_range: [-0.00, 0.04]
+    024_bowl -- position: [0.17, 0.56, 0.11], x_range: [0.01, 0.33], y_range: [0.40, 0.72], z_range: [0.05, 0.16]
+    032_knife -- position: [0.17, 0.62, 0.12], x_range: [0.06, 0.28], y_range: [0.61, 0.63], z_range: [0.11, 0.13]
+    065-e_cups -- position: [0.23, 0.49, 0.17], x_range: [0.19, 0.27], y_range: [0.45, 0.52], z_range: [0.13, 0.20]
+    012_strawberry -- position: [0.22, 0.58, 0.08], x_range: [0.20, 0.25], y_range: [0.55, 0.60], z_range: [0.06, 0.11]
+    077_rubiks_cube -- position: [0.73, 0.10, 0.06], x_range: [0.70, 0.77], y_range: [0.06, 0.14], z_range: [0.03, 0.08]
+    073-g_lego_duplo -- position: [0.53, -0.32, 0.06], x_range: [0.46, 0.59], y_range: [-0.47, -0.17], z_range: [0.03, 0.09]
+    073-f_lego_duplo -- position: [0.38, -0.41, 0.04], x_range: [0.36, 0.40], y_range: [-0.43, -0.39], z_range: [0.02, 0.06]
+    073-e_lego_duplo -- position: [0.48, -0.36, 0.10], x_range: [0.45, 0.52], y_range: [-0.41, -0.31], z_range: [0.07, 0.12]
+    073-d_lego_duplo -- position: [0.35, -0.33, 0.04], x_range: [0.32, 0.37], y_range: [-0.36, -0.30], z_range: [0.02, 0.06]
+    073-c_lego_duplo -- position: [0.48, -0.52, 0.02], x_range: [0.46, 0.49], y_range: [-0.55, -0.49], z_range: [0.01, 0.03]
+    073-b_lego_duplo -- position: [0.61, -0.43, 0.04], x_range: [0.59, 0.63], y_range: [-0.45, -0.42], z_range: [0.02, 0.06]
+    073-a_lego_duplo -- position: [0.34, -0.26, 0.02], x_range: [0.31, 0.37], y_range: [-0.28, -0.24], z_range: [0.01, 0.03]
+  [Edges]:
+    035_power_drill -> on top of -> table_20985
+    021_bleach_cleanser -> on top of -> table_20985
+    banana -> on top of -> table_20985
+    032_knife -> inside -> 024_bowl
+    065-e_cups -> inside -> 024_bowl
+    012_strawberry -> inside -> 024_bowl
+    073-e_lego_duplo -> on top of -> 073-g_lego_duplo
+    073-c_lego_duplo -> on top of -> table_20985
+    073-a_lego_duplo -> on top of -> table_20985
+
+```
+Example 1 - Score: 1/5
+
+Major Task:
+Move all objects from the table to the floor.
+
+Task Decomposition:
+Move the knife to the floor.
+Move the bleach cleanser to the floor.
+Move the banana to the floor.
+
+Score: 1/5
+Reason:
+- Logical Coherence: The task decomposition is not comprehensive. It only mentions a few objects, while many other objects (e.g., the power drill, Rubik's Cube, and Lego Duplos) remain unaddressed.
+- Detailing: The decomposition lacks detail, omitting many objects entirely. It also fails to specify how the robot should interact with objects that are inside others (e.g., the knife inside the bowl).
+- Goal Achievement: The tasks do not adequately cover all items, meaning the major task of moving all objects is not fully addressed.
+- Consideration of Spatial Relationships: The task does not take into account objects inside the bowl or on top of each other, showing no consideration for their spatial relationships.
+```
+```
+Example 2 - Score: 2/5
+
+Major Task:
+Move all objects from the table to the floor.
+
+Task Decomposition:
+Pick up the power drill.
+Move the power drill to the floor.
+Pick up the bleach cleanser.
+Move the bleach cleanser to the floor.
+Repeat for each object.
+
+Score: 2/5
+Reason:
+- Logical Coherence: The steps make sense, but they are overly repetitive and lack prioritization. Moving one object at a time is inefficient.
+- Detailing: Each task is clear, but the robot is not instructed on how to handle items inside others or objects stacked on top of each other.
+- Goal Achievement: The decomposition does attempt to achieve the goal, but it lacks precision in handling complex object relationships.
+- Consideration of Spatial Relationships: The task decomposition does not account for the knife, cups, and strawberry inside the bowl or how the Lego Duplos are stacked.
+```
+```
+Example 3 - Score: 3/5
+
+Major Task:
+Move all objects from the table to the floor.
+
+Task Decomposition:
+Move the bowl with the knife, cups, and strawberry inside it to the floor.
+Move the Lego Duplos from the table to the floor, ensuring that stacked Duplos stay together.
+Move the power drill to the floor.
+Move the Rubik’s Cube to the floor.
+Move the bleach cleanser to the floor.
+Move the banana to the floor.
+
+Score: 3/5
+Reason:
+- Logical Coherence: The task decomposition is mostly logical, grouping related items together (e.g., the knife, cups, and strawberry inside the bowl).
+- Detailing: The task is more detailed and considers object groupings, but it still doesn’t address how to deal with more complex spatial relationships (e.g., the stacked Lego Duplos).
+- Goal Achievement: The decomposition addresses the major goal but lacks clarity on what to do if objects inside containers or stacked objects become unstable.
+- Consideration of Spatial Relationships: The task begins to consider spatial relationships by keeping objects grouped, but more specificity would improve it.
+```
+```
+Example 4 - Score: 4/5
+
+Major Task:
+Move all objects from the table to the floor.
+
+Task Decomposition:
+Remove the knife, cups, and strawberry from the bowl.
+Move the bowl to the floor.
+Move the knife, cups, and strawberry to the floor, placing them together as they were on the table.
+Carefully move the stacked Lego Duplos to the floor.
+Move the power drill to the floor.
+Move the Rubik’s Cube to the floor.
+Move the bleach cleanser to the floor.
+Move the banana to the floor.
+
+Score: 4/5
+Reason:
+- Logical Coherence: The task decomposition is logical and well-ordered. It handles groups of objects effectively and maintains object relationships.
+- Detailing: Each task is specific, clear, and sufficiently detailed for the robot to execute. The handling of objects inside other objects is clearly addressed.
+- Goal Achievement: The smaller tasks contribute effectively to the major goal of moving all objects to the floor while preserving their relationships.
+- Consideration of Spatial Relationships: Spatial relationships are well considered, including objects inside containers and stacked objects. However, some details about exact object placement on the floor could be improved.
+```
+```
+Example 5 - Score: 5/5
+
+Major Task:
+Move all objects from the table to the floor.
+
+Task Decomposition:
+Identify all objects inside the bowl (knife, cups, strawberry) and carefully move them individually to the floor.
+Move the bowl itself to the floor after clearing it.
+Move the Lego Duplos while keeping them stacked as they were on the table.
+Move the power drill to the floor and ensure it’s placed upright.
+Move the Rubik’s Cube to the floor, preserving its orientation.
+Move the bleach cleanser to the floor, ensuring it is positioned stably.
+Move the banana to the floor, avoiding any potential damage or squishing.
+
+Score: 5/5
+Reason:
+- Logical Coherence: The task decomposition is highly logical, with careful attention to the relationship between objects and their groupings.
+- Detailing: The tasks are clear, specific, and provide instructions that cover both object handling and positioning.
+- Goal Achievement: Each smaller task is well designed to achieve the major task of moving all objects, while also preserving their groupings and spatial relationships.
+- Consideration of Spatial Relationships: The spatial relationships between objects are thoroughly considered, including handling complex relationships like stacked or nested items.
+```
+
+Now, looking at the given scene graph, major task and decomposed subtasks:
+{}
+
+For each task set, output the evaluation result in the following format:
+```
+Score: X/5
+Reason:
+- Logical Coherence: A brief evaluation of the task decomposition logic.
+- Detailing: A brief evaluation of whether the smaller tasks are clear and specific.
+- Goal Achievement: A brief evaluation of how the tasks help achieve the major task.
+- Consideration of Spatial Relationships: A brief evaluation of whether the task considered object positions and spatial relationships.
+```
+
+Now, please evaluate and provide a score based on the information above.

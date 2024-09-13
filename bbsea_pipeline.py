@@ -11,6 +11,9 @@ from config.core import dataset_path
 def main(
         scene: TaskScene,
         get_perception_info: Callable,
+        propose_task: Callable,
+        decompose_task: Callable,
+        infer_if_success: Callable,
 ):
     #########################################################
     # Initialization the task scene
@@ -23,7 +26,6 @@ def main(
     DrawerClose = TableTop.primitives.DrawerClose
     Press = TableTop.primitives.Press
 
-
     perception_info = get_perception_info()
     task_index=1
     is_task_subtask_suc_list=[]
@@ -31,24 +33,24 @@ def main(
         #########################################################
         # Task Propose
         #########################################################
-        task_list = propose_task_w_img(scene_graph=task_SG, model="vision")
+        task_list = propose_task(perception_info=perception_info, model="vision")
 
         #########################################################
         # Task Decompose
         #########################################################
         for task_desc in task_list[:3]:    
-            subtask_list, primitive_action_str_list, reasoning = decompose_task(task_desc=task_desc, scene_graph=task_SG, model="vision") 
+            subtask_list, primitive_action_str_list, reasoning = decompose_task(task_desc=task_desc, perception_info=perception_info, model="vision") 
             
             TableTop.set_task_index(task_index=task_index)
             with open(os.path.join(TableTop.get_task_dir(), "description.txt"), "w") as f:
-                f.write(f"task description:\n{task_desc}\n\nreasoning:\n{reasoning}\n\npre scenegraph:\n{task_SG}\n\n")
+                f.write(f"task description:\n{task_desc}\n\nreasoning:\n{reasoning}\n\npre scenegraph:\n{perception_info}\n\n")
 
             #########################################################
             # Task Execution
             #########################################################
-            task_SG_list=[task_SG]
+            task_SG_list=[perception_info]
             subtask_index = 1
-            subtask_SG = task_SG
+            subtask_SG = perception_info
             is_subtask_suc_tmp_list = []
             for subtask, primitive_action_str in zip(subtask_list, primitive_action_str_list):
                 subtask_SG_list=[subtask_SG]
@@ -69,7 +71,7 @@ def main(
                 subtask_SG = TableTop.get_scene_graph()
                 subtask_SG_list.append(subtask_SG)
 
-                is_subtask_suc_info = infer_if_success(task_desc=subtask, scene_graph_list=subtask_SG_list, model="vision")
+                is_subtask_suc_info = infer_if_success(task_desc=subtask, perception_info=subtask_SG_list, model="vision")
                 is_subtask_suc_tmp_list.append(is_subtask_suc_info[0])
                 with open(os.path.join(TableTop.get_subtask_dir(), "description.txt"), "a") as f:
                     f.write(f"post scenegraph:\n{subtask_SG}\n\nis successful:\n{is_subtask_suc_info[0]}\n{is_subtask_suc_info[1]}")
@@ -81,14 +83,14 @@ def main(
             #########################################################
             # Success Judgement
             #########################################################
-            is_task_suc_info = infer_if_success(task_desc=task_desc, scene_graph_list=task_SG_list, model="vision")
+            is_task_suc_info = infer_if_success(task_desc=task_desc, perception_info=task_SG_list, model="vision")
             is_task_subtask_suc_list.append({f"task":is_task_suc_info[0],"subtask":is_subtask_suc_tmp_list})
             
-            task_SG = TableTop.get_scene_graph()
+            perception_info = get_perception_info()
 
             TableTop.set_task_index(task_index=task_index)
             with open(os.path.join(TableTop.get_task_dir(), "description.txt"), "a") as f:
-                f.write(f"post scenegraph:\n{task_SG}\n\nis successful:\n{is_task_suc_info[0]}\n{is_task_suc_info[1]}")
+                f.write(f"post scenegraph:\n{perception_info}\n\nis successful:\n{is_task_suc_info[0]}\n{is_task_suc_info[1]}")
 
             task_index+=1
         
@@ -100,5 +102,15 @@ def main(
 
 if __name__=="__main__":
     TableTop = SimplePickPlaceScene()
+
+    decompose_task = decompose_task_w_SG
+    infer_if_success = infer_if_success_w_SG
+    propose_task = propose_task_w_SG
     
-    main(scene=TableTop, get_perception_info=TableTop.get_rgb_picture)
+    main(
+        scene=TableTop, 
+        get_perception_info=TableTop.get_scene_graph,
+        decompose_task=decompose_task,
+        infer_if_success=infer_if_success,
+        propose_task=propose_task
+    )

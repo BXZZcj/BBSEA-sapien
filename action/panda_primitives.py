@@ -20,7 +20,7 @@ from scene.core import TaskScene, SpecifiedObject
 from scene.specified_object import StorageFurniture, Robot
 
 # the distance between the move group center with the grippers center
-DMG2G = 0.1
+MG2G = 0.11
 # the figger length of the gripper
 FL = 0.048
 
@@ -70,7 +70,7 @@ class PandaPrimitives:
             gripper_direction = gripper_direction/np.linalg.norm(gripper_direction)
 
             move_group_pose = sapien.Pose()
-            move_group_pose.set_p(gripper_pose.p - DMG2G*gripper_direction)
+            move_group_pose.set_p(gripper_pose.p - MG2G*gripper_direction)
             move_group_pose.set_q(gripper_pose.q)
         else:
             move_group_pose = gripper_pose
@@ -134,9 +134,9 @@ class PandaPrimitives:
         for joint in self.robot.body.get_active_joints()[-2:]:
             joint.set_drive_target(0)
         # Make the grasping more stable.
-        target_qf = self.robot.body.get_qf()
-        target_qf[-2:]=[10,10]
-        self.robot.body.set_qf(target_qf)
+        # target_qf = self.robot.body.get_qf()
+        # target_qf[-2:]=[100,100]
+        # self.robot.body.set_qf(target_qf)
 
         last_gripper_qpos=None
         for i in range(150):  
@@ -261,6 +261,7 @@ class PandaPrimitives:
                 pushin_more=True
         )-> Tuple[Pose, Pose, Pose]:
             pcd, pcd_normals = get_pcd_normals_from_obj(obj)
+            pcd.mean()
             
             pointing_down = pcd_normals[:, 2] < 0.0
             P = np.ones(shape=len(pcd), dtype=np.float64)
@@ -390,7 +391,7 @@ class PandaPrimitives:
 
         self._open_gripper()
         
-        grasp_pose, pregrasp_pose, retreat_pose = _compute_pose_for_pick_via_policy(self.task_scene.get_object_by_name(object_name))
+        grasp_pose, pregrasp_pose, retreat_pose = _compute_pose_for_pick(self.task_scene.get_object_by_name(object_name))
         if grasp_pose==None or pregrasp_pose==None or retreat_pose==None:
             raise Exception("No grasp/pregrasp/retreat pose achievable in Pick action.")
 

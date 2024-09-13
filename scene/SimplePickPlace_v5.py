@@ -492,7 +492,7 @@ if __name__ == '__main__':
     # depth_pil = Image.fromarray(depth_img)
     # demo.downward_camera.get_model_matrix()
 
-    rgba_pil.save("/home/jiechu/Data/TinyRobotBench/manipulate/tests/rgba_pil_backward.png")
+    rgba_pil.save("/home/admin01/Data/BBSEA-sapien/tests/rgba_pil_backward.png")
     # depth_pil.save("/home/jiechu/Data/TinyRobotBench/manipulate/tests/depth_pil.png")
 
     demo.demo(step=False)

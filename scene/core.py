@@ -38,13 +38,25 @@ class SpecifiedObject:
 
 
 class TaskScene():
-    def __init__(self):
+    def __init__(
+            self, 
+            ray_tracking: bool = False,
+            rt_samples_per_pixel: int=8,
+            rt_use_denoiser:bool=True,
+    ):
         self.engine = sapien.Engine()
+
+        if ray_tracking:
+            sapien.render_config.camera_shader_dir = "rt"
+            sapien.render_config.viewer_shader_dir = "rt"
+            sapien.render_config.rt_samples_per_pixel = rt_samples_per_pixel
+            sapien.render_config.rt_use_denoiser = rt_use_denoiser
+
         self.renderer = sapien.SapienRenderer()
         self.engine.set_renderer(self.renderer)
         
         self.scene = self.engine.create_scene(sapien.SceneConfig())
-        self.time_step = 1 / 100.0
+        self.time_step = 1 / 300.0
         self.scene.set_timestep(self.time_step)
         self._set_ground(altitude=-1)
         self.scene.default_physical_material = self.scene.create_physical_material(static_friction=1, dynamic_friction=1, restitution=0.0)

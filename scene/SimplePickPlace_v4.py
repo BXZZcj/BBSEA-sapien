@@ -20,7 +20,7 @@ from utils import load_articulation
 
 class SimplePickPlaceScene(TaskScene):
     def __init__(self):
-        super().__init__()
+        super().__init__(ray_tracking=False)
         
         self._set_ground(
             altitude=-0.44867,
@@ -100,10 +100,26 @@ class SimplePickPlaceScene(TaskScene):
 
         load_object_mesh(
             self, 
+            sapien.Pose(p=[0.66, 0.4, 0.0866755], q=euler.euler2quat(np.pi/2, 0, -np.pi/2)), 
+            collision_file_path=os.path.join(manipulate_root_path, "assets/object/ycb/035_power_drill/google_16k/textured.obj"),
+            visual_file_path=os.path.join(manipulate_root_path, "assets/object/ycb/035_power_drill/google_16k/textured.obj"),
+            texture_file_path=os.path.join(manipulate_root_path, "assets/object/ycb/035_power_drill/google_16k/texture_map.png"),
+            name='035_power_drill',
+        )
+        load_object_mesh(
+            self, 
+            sapien.Pose(p=[0.750233, 0.29975, -0.000928931]), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/021_bleach_cleanser/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/021_bleach_cleanser/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/021_bleach_cleanser/google_16k/texture_map.png'),
+            name='021_bleach_cleanser',
+        )
+        load_object_mesh(
+            self, 
             sapien.Pose(p=[0.66, 0.05, 0.0187573]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/058_golf_ball/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/058_golf_ball/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/058_golf_ball/texture_map.png'),
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/058_golf_ball/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/058_golf_ball/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/058_golf_ball/google_16k/texture_map.png'),
             name='058_golf_ball',
         )
         load_object_mesh(
@@ -115,66 +131,132 @@ class SimplePickPlaceScene(TaskScene):
         )
         load_object_mesh(
             self, 
-            sapien.Pose(p=[0.75, 0.1, 0.0266351]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/077_rubiks_cube/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/077_rubiks_cube/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/077_rubiks_cube/texture_map.png'),
-            name='077_rubiks_cube',
+            sapien.Pose(p=[0.2, 0.5+0.15, 0.0524892]), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/024_bowl/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/024_bowl/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/024_bowl/google_16k/texture_map.png'),
+            name='024_bowl',
+            scale=np.array([2,2,2]),
+            is_kinematic=True,
+        )
+        load_object_mesh(
+            self, 
+            sapien.Pose(p=[0.191219, 0.644984, 0.117058]), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/032_knife/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/032_knife/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/032_knife/google_16k/texture_map.png'),
+            name='032_knife',
+        )
+        load_object_mesh(
+            self, 
+            sapien.Pose(p=[0.250822, 0.565449, 0.132202]), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/065-e_cups/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/065-e_cups/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/065-e_cups/google_16k/texture_map.png'),
+            name='065-e_cups',
         )
         # load_object_mesh(
         #     self, 
-        #     sapien.Pose(p=[0.541724, -0.287774, 0.027222]), 
-        #     collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-g_lego_duplo/textured.obj'),
-        #     visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-g_lego_duplo/textured.obj'),
-        #     texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-g_lego_duplo/texture_map.png'),
-        #     name='073-g_lego_duplo',
+        #     sapien.Pose(p=[0.191804, 0.625345, 0.0544598]), 
+        #     collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/013_apple/google_16k/textured.obj'),
+        #     visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/013_apple/google_16k/textured.obj'),
+        #     texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/013_apple/google_16k/texture_map.png'),
+        #     name='013_apple',
+        # )
+        # load_object_mesh(
+        #     self, 
+        #     sapien.Pose(p=[0.16752, 0.57692, 0.0710526]), 
+        #     collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/014_lemon/google_16k/textured.obj'),
+        #     visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/014_lemon/google_16k/textured.obj'),
+        #     texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/014_lemon/google_16k/texture_map.png'),
+        #     name='014_lemon',
+        # )
+        # load_object_mesh(
+        #     self, 
+        #     sapien.Pose(p=[0.114731, 0.606201, 0.05114]), 
+        #     collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/015_peach/google_16k/textured.obj'),
+        #     visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/015_peach/google_16k/textured.obj'),
+        #     texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/015_peach/google_16k/texture_map.png'),
+        #     name='015_peach',
+        # )
+        # load_object_mesh(
+        #     self, 
+        #     sapien.Pose(p=[0.121091, 0.482133, 0.0481618]), 
+        #     collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/016_pear/google_16k/textured.obj'),
+        #     visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/016_pear/google_16k/textured.obj'),
+        #     texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/016_pear/google_16k/texture_map.png'),
+        #     name='016_pear',
         # )
         load_object_mesh(
             self, 
+            sapien.Pose(p=[0.224096, 0.559604, 0.0609533]), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/012_strawberry/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/012_strawberry/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/012_strawberry/google_16k/texture_map.png'),
+            name='012_strawberry',
+        )
+        load_object_mesh(
+            self, 
+            sapien.Pose(p=[0.75, 0.1, 0.0266351]), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/077_rubiks_cube/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/077_rubiks_cube/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/077_rubiks_cube/google_16k/texture_map.png'),
+            name='077_rubiks_cube',
+        )
+        load_object_mesh(
+            self, 
+            sapien.Pose(p=[0.541724, -0.287774, 0.027222]), 
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-g_lego_duplo/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-g_lego_duplo/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-g_lego_duplo/google_16k/texture_map.png'),
+            name='073-g_lego_duplo',
+        )
+        load_object_mesh(
+            self, 
             sapien.Pose(p=[0.406019, -0.340739, 0.0195762]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-f_lego_duplo/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-f_lego_duplo/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-f_lego_duplo/texture_map.png'),
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-f_lego_duplo/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-f_lego_duplo/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-f_lego_duplo/google_16k/texture_map.png'),
             name='073-f_lego_duplo',
         )
         load_object_mesh(
             self, 
             sapien.Pose(p=[0.505376, -0.311012, 0.0727183]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-e_lego_duplo/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-e_lego_duplo/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-e_lego_duplo/texture_map.png'),
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-e_lego_duplo/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-e_lego_duplo/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-e_lego_duplo/google_16k/texture_map.png'),
             name='073-e_lego_duplo',
         )
         load_object_mesh(
             self, 
             sapien.Pose(p=[0.369825, -0.301168, 0.0194148]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-d_lego_duplo/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-d_lego_duplo/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-d_lego_duplo/texture_map.png'),
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-d_lego_duplo/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-d_lego_duplo/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-d_lego_duplo/google_16k/texture_map.png'),
             name='073-d_lego_duplo',
         )
         load_object_mesh(
             self, 
             sapien.Pose(p=[0.490428, -0.499637, 0.00965894]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-c_lego_duplo/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-c_lego_duplo/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-c_lego_duplo/texture_map.png'),
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-c_lego_duplo/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-c_lego_duplo/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-c_lego_duplo/google_16k/texture_map.png'),
             name='073-c_lego_duplo',
         )
         load_object_mesh(
             self, 
             sapien.Pose(p=[0.630726, -0.412977, 0.0193675]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-b_lego_duplo/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-b_lego_duplo/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-b_lego_duplo/texture_map.png'),
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-b_lego_duplo/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-b_lego_duplo/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-b_lego_duplo/google_16k/texture_map.png'),
             name='073-b_lego_duplo',
         )
         load_object_mesh(
             self, 
             sapien.Pose(p=[0.355787, -0.249862, 0.00983431]), 
-            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-a_lego_duplo/textured.obj'),
-            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-a_lego_duplo/textured.obj'),
-            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/mani_skill2_ycb/models/073-a_lego_duplo/texture_map.png'),
+            collision_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-a_lego_duplo/google_16k/textured.obj'),
+            visual_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-a_lego_duplo/google_16k/textured.obj'),
+            texture_file_path=os.path.join(manipulate_root_path, 'assets/object/ycb/073-a_lego_duplo/google_16k/texture_map.png'),
             name='073-a_lego_duplo',
         )
         
@@ -263,7 +345,7 @@ class SimplePickPlaceScene(TaskScene):
             leftward_record :bool = False,
             first_person_record :bool = False,
     ):
-        n_render_step = 8
+        n_render_step = 100
         self.scene.step()
         self.step_callback()
 
@@ -320,27 +402,25 @@ class SimplePickPlaceScene(TaskScene):
         while not self.viewer.closed:
             if step:
                 self.scene.step() 
-            # print(self.catapult.get_qlimits())
-            # print(self.get_object_by_name("catapult").get_pose())
             self.scene.update_render()
             self.viewer.render()
 
 
 if __name__ == '__main__':
     demo=SimplePickPlaceScene()
-    # demo.demo(step=False)
-    # print(demo.get_scene_graph())
+    # demo.demo(step=True)
+    print(demo.get_scene_graph())
     
-    demo.set_task_index(1, 1)
+    # demo.set_task_index(1, 1)
 
-    demo.set_step_index(0)
-    demo.primitives.Pick('banana')
-    demo.primitives.PlaceOn('catapult')
+    # demo.set_step_index(0)
+    # demo.primitives.Pick('banana')
+    # demo.primitives.PlaceOn('catapult')
     # try:
-    #     demo.primitives.Pick('073-g_lego_duplo')
-    #     demo.primitives.PlaceOn('073-a_lego_duplo')
+    # demo.primitives.Pick('073-f_lego_duplo')
+    # demo.primitives.PlaceOn('073-a_lego_duplo')
     # except Exception as e:
     #     print(f"A error occurred: {e}")
-    demo.set_step_index(0)
+    # demo.set_step_index(0)
     
     # demo.demo(step=True)

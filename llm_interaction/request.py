@@ -19,9 +19,9 @@ def gpt_api(
         messages: list, 
         temperature: float, 
         model:str="vision", 
-        max_tokens:int=1000
+        max_tokens:int=100000
 )->str:
-    if model == "vision":
+    if model == "vision" or "4o":
         client = AzureOpenAI(
             api_key=azure_api_key,
             api_version=azure_api_version,
@@ -118,7 +118,7 @@ def propose_task_w_SG(
     """
     perception_info: Scene Graph
     """
-    with open(prompts_path["task_propose"], 'r', encoding='utf-8') as f:
+    with open(prompts_path["task_propose_w_SG"], 'r', encoding='utf-8') as f:
         base_prompt = f.read()
 
     prompt = base_prompt.format(perception_info)
@@ -227,7 +227,7 @@ def decompose_task_w_SG(
         model:str, 
         temperature:float=0.2
 )->Tuple[List[str], List[str], str]:
-    with open(prompts_path["task_decompose"], 'r', encoding='utf-8') as f:
+    with open(prompts_path["task_decompose_w_SG"], 'r', encoding='utf-8') as f:
         base_prompt = f.read()
     prompt = base_prompt.format(task_desc, perception_info)
 

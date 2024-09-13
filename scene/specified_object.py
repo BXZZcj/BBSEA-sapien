@@ -184,7 +184,7 @@ class Robot(SpecifiedObject):
             srdf_file_path:str,
             move_group:str,
             active_joints_num_wo_EE:int,
-            mounted_obj:list[Link]=[],
+            mounted_obj:List[Link]=[],
             name:str=None,
             parent: SpecifiedObject = None,
         ):

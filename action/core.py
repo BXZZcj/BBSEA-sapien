@@ -193,8 +193,8 @@ class Move_Tool():
         n_step = mp_result['position'].shape[0]
         n_driven_joints=mp_result['position'].shape[1]
 
-        if n_step > 1000:
-            raise Exception("The motion path is too long. That's usual, probably, the arm will tic, or make a circle.")
+        # if n_step > 1000:
+        #     raise Exception("The motion path is too long. That's usual, probably, the arm will tic, or make a circle.")
 
         for i in range(n_step):
             qf = self.robot.body.compute_passive_force()

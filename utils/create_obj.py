@@ -165,7 +165,7 @@ def load_object_mesh(
         render_material = None
 
     builder = task_scene.scene.create_actor_builder()
-    physical_material = task_scene.scene.create_physical_material(static_friction=1, dynamic_friction=1, restitution=0.5)
+    physical_material = task_scene.scene.create_physical_material(static_friction=2, dynamic_friction=2, restitution=0)
     # Any collision shape in SAPIEN is required to be convex. 
     # To this end, a mesh will be “cooked” into a convex mesh before being used in the simulation.
     # HOWEVER， you can still add a nonconvex collision shape from a file. 
